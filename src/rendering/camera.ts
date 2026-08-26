@@ -48,7 +48,7 @@ export function layoutCamera(
 
   // Screen space reserved by HUD overlays.
   const reserveX = desktop ? 315 : 8
-  const reserveY = desktop ? 40 : portrait ? 132 : height < 500 ? 56 : 96
+  const reserveY = desktop ? 40 : portrait ? 136 : height < 500 ? 72 : 100
   const marginX = Math.max(0.32, 1 - (2 * reserveX) / width) * 0.97
   const marginY = Math.max(0.32, 1 - (2 * reserveY) / height) * 0.97
 
