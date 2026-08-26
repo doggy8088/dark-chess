@@ -195,10 +195,10 @@ export class Room {
 
   // ------------------------------------------------------------------ join
 
-  join(socket: ClientSocket, playerToken: string | undefined, name: string | undefined): void {
+  join(socket: ClientSocket, playerToken: string | undefined, name: string | undefined, spectate = false): void {
     this.evaluate()
     const statusBefore = this.status
-    const seat = this.assignSeat(socket, playerToken, name)
+    const seat = this.assignSeat(socket, playerToken, name, spectate)
 
     if (seat === 0 || seat === 1) {
       // Rejoining player-to-move resumes their paused clock.
@@ -236,7 +236,13 @@ export class Room {
     this.persist()
   }
 
-  private assignSeat(socket: ClientSocket, playerToken: string | undefined, name: string | undefined): SeatOrSpectator {
+  private assignSeat(
+    socket: ClientSocket,
+    playerToken: string | undefined,
+    name: string | undefined,
+    spectate: boolean,
+  ): SeatOrSpectator {
+    // A returning player always reclaims their seat, spectate intent or not.
     for (const seat of [0, 1] as const) {
       const s = this.seats[seat]
       if (s && playerToken && s.token === playerToken) {
@@ -248,7 +254,7 @@ export class Room {
         return seat
       }
     }
-    if (!this.seats[1]) {
+    if (!this.seats[1] && !spectate) {
       const trimmed = (name ?? '').trim().slice(0, 12)
       const seatName = trimmed || '玩家二'
       this.seats[1] = { token: newPlayerToken(), name: seatName, socket }

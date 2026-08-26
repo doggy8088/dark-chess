@@ -103,23 +103,23 @@
       </div>
     </section>
 
-    <!-- ONLINE JOIN (opened an invite link, no seat yet) -->
+    <!-- ONLINE JOIN (opened an invite link or a watch button, no seat yet) -->
     <section id="screen-online-join" class="screen" hidden>
       <div class="setup-inner">
-        <h2 class="setup-title">加入對戰</h2>
-        <p class="wait-hint">輸入你的暱稱後加入對戰；若座位已滿，將以觀眾身分進場（可聊天，不能下棋）。</p>
+        <h2 class="setup-title" id="join-title">加入對戰</h2>
+        <p class="wait-hint" id="join-desc">輸入你的暱稱後加入對戰；若座位已滿，將以觀眾身分進場（可聊天，不能下棋）。</p>
         <form id="online-join-form">
           <label class="field">
             <span class="field-label">你的暱稱</span>
             <input id="input-join-name" name="join-name" type="text" maxlength="12" autocomplete="off" placeholder="玩家二" />
           </label>
-          <div class="online-rules-note">
+          <div class="online-rules-note" id="join-rules-note">
             <p>・每一步限時 <strong>60 秒</strong>，逾時判負</p>
             <p>・斷線後有 <strong>90 秒</strong>重連寬限，同一網址即可回到對局</p>
           </div>
           <div class="setup-actions">
             <button type="button" id="btn-join-home" class="btn btn-ghost" aria-label="回主選單">回主選單</button>
-            <button type="submit" id="btn-join-go" class="btn btn-primary" aria-label="加入對戰">加入對戰</button>
+            <button type="submit" id="btn-join-go" class="btn btn-primary" aria-label="加入">加入對戰</button>
           </div>
         </form>
       </div>

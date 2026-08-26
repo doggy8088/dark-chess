@@ -20,7 +20,7 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
       if (typeof msg.roomId !== 'string') return null
       const playerToken = typeof msg.playerToken === 'string' ? msg.playerToken.slice(0, 64) : undefined
       const name = typeof msg.name === 'string' ? msg.name.slice(0, 24) : undefined
-      return { t: 'join', roomId: msg.roomId.slice(0, 24), playerToken, name }
+      return { t: 'join', roomId: msg.roomId.slice(0, 24), playerToken, name, spectate: msg.spectate === true }
     }
     case 'action': {
       if (typeof msg.seq !== 'number' || !Number.isFinite(msg.seq)) return null

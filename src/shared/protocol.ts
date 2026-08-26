@@ -93,7 +93,7 @@ export interface FairnessReveal {
 // ---------------------------------------------------------------- client → server
 
 export type ClientMessage =
-  | { t: 'join'; roomId: string; playerToken?: string; name?: string }
+  | { t: 'join'; roomId: string; playerToken?: string; name?: string; spectate?: boolean }
   | { t: 'action'; seq: number; action: Action }
   | { t: 'chat'; text: string }
   | { t: 'canned'; id: string }

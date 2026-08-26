@@ -103,6 +103,8 @@ export class OnlineSession {
     readonly roomId: string,
     myName: string,
     private readonly callbacks: OnlineSessionCallbacks,
+    /** Watch intent: never claim an empty seat, always enter as spectator. */
+    private readonly spectate = false,
   ) {
     this.myName = myName.trim().slice(0, 12) || '玩家'
     this.socket = new ReconnectingSocket({
@@ -123,7 +125,7 @@ export class OnlineSession {
 
   private sendJoin(): void {
     const token = loadRoomToken(this.roomId) ?? undefined
-    this.socket.send({ t: 'join', roomId: this.roomId, playerToken: token, name: this.myName })
+    this.socket.send({ t: 'join', roomId: this.roomId, playerToken: token, name: this.myName, spectate: this.spectate })
   }
 
   // -------------------------------------------------------------- outbound

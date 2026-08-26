@@ -27,6 +27,21 @@ describe('Room seating', () => {
     expect(joinedB.fairnessHash).toMatch(/^[0-9a-f]{64}$/)
   })
 
+  it('watch intent never claims an empty seat', async () => {
+    const deps = makeDeps()
+    const room = await Room.create('testroom22', '甲', deps)
+    const watcher = new FakeSocket()
+    room.join(watcher, undefined, '觀眾丙', true)
+    expect(watcher.ofType('joined')[0]!.seat).toBe('spectator')
+    expect(room.status).toBe('waiting')
+    expect(room.seats[1]).toBeNull()
+    // A real opponent can still take the seat afterwards.
+    const b = new FakeSocket()
+    room.join(b, undefined, '乙')
+    expect(b.ofType('joined')[0]!.seat).toBe(1)
+    expect(room.status).toBe('playing')
+  })
+
   it('third visitor becomes a spectator', async () => {
     const { room } = await seatedRoom()
     const c = new FakeSocket()

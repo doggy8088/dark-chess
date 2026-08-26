@@ -53,6 +53,7 @@ export class App {
   // Online state
   private online: OnlineSession | null = null
   private pendingJoinRoomId: string | null = null
+  private pendingJoinIntent: 'play' | 'watch' = 'play'
   private myOnlineName = ''
   private onlineAvailable = false
   private chat!: ChatPanel
@@ -344,11 +345,11 @@ export class App {
       event.preventDefault()
       const roomId = this.pendingJoinRoomId
       if (!roomId) return
-      const name = el<HTMLInputElement>('input-join-name').value.trim() || '玩家二'
+      const name = el<HTMLInputElement>('input-join-name').value.trim() || (this.pendingJoinIntent === 'watch' ? '觀眾' : '玩家二')
       this.settings.playerNames[0] = name
       saveSettings(this.settings)
       this.pendingJoinRoomId = null
-      this.openOnlineSession(roomId, name)
+      this.openOnlineSession(roomId, name, this.pendingJoinIntent === 'watch')
     })
 
     el('btn-menu-copylink').addEventListener('click', async () => {
@@ -486,7 +487,7 @@ export class App {
       watch.setAttribute('aria-label', `觀戰 ${game.players[0].name} 對 ${game.players[1].name}`)
       watch.addEventListener('click', () => {
         history.replaceState(null, '', `/r/${game.roomId}`)
-        this.joinOnlineRoom(game.roomId)
+        this.joinOnlineRoom(game.roomId, 'watch')
       })
 
       item.append(info, watch)
@@ -519,20 +520,33 @@ export class App {
     }
   }
 
-  /** Entry from an invite URL. Returning players (with a seat token) rejoin
-   * silently; a first-time guest picks their nickname before connecting. */
-  private joinOnlineRoom(roomId: string): void {
+  /** Entry from an invite URL ('play') or a watch button ('watch').
+   * Returning players (with a seat token) rejoin silently; everyone else
+   * picks their nickname first — with wording that matches their intent. */
+  private joinOnlineRoom(roomId: string, intent: 'play' | 'watch' = 'play'): void {
     if (loadRoomToken(roomId)) {
-      this.openOnlineSession(roomId, this.settings.playerNames[0])
+      this.openOnlineSession(roomId, this.settings.playerNames[0], intent === 'watch')
       return
     }
     this.pendingJoinRoomId = roomId
+    this.pendingJoinIntent = intent
     this.setMode('online')
     el<HTMLInputElement>('input-join-name').value = this.settings.playerNames[0]
+    if (intent === 'watch') {
+      el('join-title').textContent = '進入觀戰'
+      el('join-desc').textContent = '輸入你的暱稱後進場觀戰——可以在聊天室裡幫喊加油，但不能下棋。'
+      el('btn-join-go').textContent = '進入觀戰'
+      el('join-rules-note').hidden = true
+    } else {
+      el('join-title').textContent = '加入對戰'
+      el('join-desc').textContent = '輸入你的暱稱後加入對戰；若座位已滿，將以觀眾身分進場（可聊天，不能下棋）。'
+      el('btn-join-go').textContent = '加入對戰'
+      el('join-rules-note').hidden = false
+    }
     showScreen('screen-online-join')
   }
 
-  private openOnlineSession(roomId: string, myName: string): void {
+  private openOnlineSession(roomId: string, myName: string, spectate = false): void {
     this.online?.dispose()
     this.myOnlineName = myName
     this.setMode('online')
@@ -585,7 +599,7 @@ export class App {
       onConnectionChanged: (connected) => this.setConnectionOverlay(!connected),
       onError: (code, message) => this.handleOnlineError(code, message),
       onYourTurnWhileHidden: () => this.notifyYourTurn(),
-    })
+    }, spectate)
     this.online.connect()
   }
 

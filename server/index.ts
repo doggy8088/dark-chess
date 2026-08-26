@@ -100,7 +100,7 @@ wss.on('connection', (ws: WebSocket) => {
         }
         room?.disconnect(ws)
         room = found
-        room.join(ws, msg.playerToken, msg.name)
+        room.join(ws, msg.playerToken, msg.name, msg.spectate)
       })()
       return
     }
