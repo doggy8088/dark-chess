@@ -3,6 +3,8 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "license": "MIT",
+  "author": "Will 保哥 (https://www.facebook.com/will.fans/)",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
