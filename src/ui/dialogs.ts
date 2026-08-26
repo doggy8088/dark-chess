@@ -96,16 +96,16 @@ export function showFairnessDialog(
 }
 
 /** Fills and opens the game-over dialog. */
-export function showGameOverDialog(state: GameState, elapsedMs: number): void {
+export function showGameOverDialog(state: GameState, elapsedMs: number, reasonOverride?: string): void {
   const title = el('gameover-title')
   const subtitle = el('gameover-subtitle')
   if (state.status === 'won' && state.winnerIndex !== null) {
     const winner = state.players[state.winnerIndex]
     title.textContent = `${winner.name} 獲勝`
-    subtitle.textContent = winner.color ? `${COLOR_NAME[winner.color]}吃光對方所有棋子` : ''
+    subtitle.textContent = reasonOverride || (winner.color ? `${COLOR_NAME[winner.color]}吃光對方所有棋子` : '吃光對方所有棋子')
   } else {
     title.textContent = '和局'
-    subtitle.textContent = '雙方連續 25 回合無吃子，或協議和棋'
+    subtitle.textContent = reasonOverride || '雙方連續 25 回合無吃子，或協議和棋'
   }
 
   const redCaptures = state.history.filter((h) => h.kind === 'capture' && h.pieceColor === 'red').length

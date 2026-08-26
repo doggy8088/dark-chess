@@ -535,6 +535,34 @@ button { font: inherit; color: inherit; }
 .history-turn { color: #7d6f5c; font-variant-numeric: tabular-nums; flex: none; width: 2.4em; text-align: right; }
 .history-capture { color: var(--red-soft); }
 
+.history-gameover {
+  margin-top: 6px;
+  padding: 8px 10px !important;
+  background: rgba(201, 164, 92, .14) !important;
+  border: 1px solid var(--accent) !important;
+  border-radius: var(--radius);
+  color: var(--ink) !important;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.history-turn-end {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-radius: 4px;
+  font-weight: 700;
+  padding: 0 5px;
+  width: auto;
+  text-align: center;
+  line-height: 1.5;
+}
+.history-gameover-msg {
+  color: var(--ink);
+  flex: 1;
+  line-height: 1.4;
+}
+
 /* Side panel: hidden on mobile */
 #panel-side { display: none; }
 

@@ -20,10 +20,15 @@ export class Hud {
   private readonly historyMobile = el<HTMLOListElement>('history-list-mobile')
   private hintTimeout = 0
   private lastPlayerIndex: number | null = null
+  private currentGameOverReason: string | null = null
 
-  update(state: GameState): void {
+  update(state: GameState, gameOverReasonText?: string | null): void {
+    if (gameOverReasonText !== undefined) {
+      this.currentGameOverReason = gameOverReasonText
+    }
     const player = currentPlayer(state)
     if (state.status === 'playing') {
+      this.currentGameOverReason = null
       const camp = player.color ? COLOR_NAME[player.color] : '陣營未定'
       this.turnText.textContent = `${player.name} · ${camp}`
       this.turnChip.className = `color-chip${player.color ? ` ${player.color}` : ''}`
@@ -37,17 +42,23 @@ export class Hud {
       this.lastPlayerIndex = state.currentPlayerIndex
     } else if (state.status === 'won' && state.winnerIndex !== null) {
       const winner = state.players[state.winnerIndex]
-      this.turnText.textContent = `${winner.name} 獲勝`
+      const reason = this.currentGameOverReason ? `（${this.currentGameOverReason}）` : ''
+      this.turnText.textContent = `${winner.name} 獲勝 ${reason}`.trim()
+      if (winner.color) {
+        this.turnChip.className = `color-chip ${winner.color}`
+      }
     } else if (state.status === 'draw') {
-      this.turnText.textContent = '和局'
+      const reason = this.currentGameOverReason ? `（${this.currentGameOverReason}）` : ''
+      this.turnText.textContent = `和局 ${reason}`.trim()
+      this.turnChip.className = 'color-chip'
     }
 
     this.noCapture.textContent = `無吃子 ${state.noCaptureTurnCount}/${NO_CAPTURE_DRAW_LIMIT}`
     this.noCapture.classList.toggle('warn', state.noCaptureTurnCount >= NO_CAPTURE_DRAW_LIMIT - 5)
 
     this.renderCaptured(state)
-    renderHistory(this.historyDesktop, state)
-    renderHistory(this.historyMobile, state)
+    renderHistory(this.historyDesktop, state, this.currentGameOverReason)
+    renderHistory(this.historyMobile, state, this.currentGameOverReason)
   }
 
   private renderCaptured(state: GameState): void {

@@ -228,7 +228,7 @@ export class App {
     if (this.mode === 'hotseat' && this.fairness) saveGame(state, this.fairness, this.currentElapsedMs())
   }
 
-  private handleGameOver(state: GameState): void {
+  private handleGameOver(state: GameState, reasonOverride?: string): void {
     this.phase = 'GAME_OVER'
     this.pauseClock()
     if (this.mode === 'online') {
@@ -236,7 +236,15 @@ export class App {
       return
     }
     clearSavedGame()
-    showGameOverDialog(state, this.elapsedBaseMs)
+    const reason =
+      reasonOverride ||
+      (state.status === 'won'
+        ? '吃光對方所有棋子'
+        : state.noCaptureTurnCount >= 25
+          ? '連續 25 步無吃子，判定和棋'
+          : '雙方同意和棋')
+    this.hud.update(state, reason)
+    showGameOverDialog(state, this.elapsedBaseMs, reason)
   }
 
   private wireGameUi(): void {
@@ -276,8 +284,7 @@ export class App {
       if (agreed && this.controller && this.controller.state.status === 'playing') {
         const drawn = agreeDraw(this.controller.state)
         this.controller.state = drawn
-        this.hud.update(drawn)
-        this.handleGameOver(drawn)
+        this.handleGameOver(drawn, '雙方同意和棋')
       }
     })
 
@@ -693,9 +700,18 @@ export class App {
 
   private showOnlineGameOver(state: GameState, infoOverride?: GameOverInfo): void {
     const info = infoOverride ?? this.online?.gameOverInfo ?? null
-    showGameOverDialog(state, this.currentElapsedMs())
+    const reasonText = info
+      ? GAME_OVER_REASON_TEXT[info.reason]
+      : state.status === 'won'
+        ? '吃光對方所有棋子'
+        : state.status === 'draw'
+          ? '和局'
+          : ''
+
+    this.hud.update(state, reasonText)
+    showGameOverDialog(state, this.currentElapsedMs(), reasonText)
+
     if (info) {
-      el('gameover-subtitle').textContent = GAME_OVER_REASON_TEXT[info.reason]
       if (info.winnerIndex !== null) {
         el('gameover-title').textContent = `${state.players[info.winnerIndex].name} 獲勝`
       } else if (info.reason === 'aborted') {
@@ -705,8 +721,29 @@ export class App {
     this.setGameOverStatus('')
     const isSeated = this.online?.seat === 0 || this.online?.seat === 1
     el<HTMLButtonElement>('btn-again').hidden = !isSeated
-    // Nobody gets kicked at game over — the room and its chat stay open.
-    this.chat.addNotice('對局結束，歡迎留在聊天室繼續聊聊剛剛的戰局！')
+
+    // Post outcome notice in chat and hint
+    let outcomeNotice = ''
+    if (info) {
+      if (info.winnerIndex !== null) {
+        const winner = state.players[info.winnerIndex]
+        outcomeNotice = `🏁 對局結束：${winner.name} 獲勝（${GAME_OVER_REASON_TEXT[info.reason]}）`
+      } else if (info.reason === 'aborted') {
+        outcomeNotice = `🏁 對局結束：對戰提前結束，不計勝負`
+      } else {
+        outcomeNotice = `🏁 對局結束：和局（${GAME_OVER_REASON_TEXT[info.reason]}）`
+      }
+    } else if (state.status === 'won' && state.winnerIndex !== null) {
+      outcomeNotice = `🏁 對局結束：${state.players[state.winnerIndex].name} 獲勝`
+    } else if (state.status === 'draw') {
+      outcomeNotice = `🏁 對局結束：和局`
+    }
+
+    if (outcomeNotice) {
+      this.chat.addNotice(outcomeNotice)
+      this.hud.showHint(outcomeNotice)
+    }
+    this.chat.addNotice('歡迎留在聊天室繼續聊聊剛剛的戰局！')
   }
 
   private setGameOverStatus(text: string): void {

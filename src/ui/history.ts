@@ -25,8 +25,25 @@ export function formatHistoryEntry(entry: HistoryEntry, state: GameState): strin
   }
 }
 
+export function formatHistoryConclusion(state: GameState, gameOverReasonText?: string | null): string | null {
+  if (state.status === 'playing') return null
+  if (state.status === 'won' && state.winnerIndex !== null) {
+    const winner = state.players[state.winnerIndex]
+    const reason = gameOverReasonText ? ` · ${gameOverReasonText}` : ''
+    return `🏆 ${winner.name} 獲勝${reason}`
+  }
+  if (state.status === 'draw') {
+    const reason = gameOverReasonText ? ` · ${gameOverReasonText}` : ''
+    return `🤝 和局${reason}`
+  }
+  if (gameOverReasonText) {
+    return `🏁 ${gameOverReasonText}`
+  }
+  return null
+}
+
 /** Renders the move history into a list element and scrolls to the latest entry. */
-export function renderHistory(list: HTMLOListElement, state: GameState): void {
+export function renderHistory(list: HTMLOListElement, state: GameState, gameOverReasonText?: string | null): void {
   list.textContent = ''
   const fragment = document.createDocumentFragment()
   for (const entry of state.history) {
@@ -40,6 +57,27 @@ export function renderHistory(list: HTMLOListElement, state: GameState): void {
     item.append(turn, text)
     fragment.append(item)
   }
+
+  // If game is finished, display a highlighted conclusion row
+  if (state.status !== 'playing') {
+    const summary = formatHistoryConclusion(state, gameOverReasonText)
+    if (summary) {
+      const endItem = document.createElement('li')
+      endItem.className = 'history-gameover'
+
+      const turnEnd = document.createElement('span')
+      turnEnd.className = 'history-turn history-turn-end'
+      turnEnd.textContent = '終'
+
+      const endText = document.createElement('span')
+      endText.className = 'history-gameover-msg'
+      endText.textContent = summary
+
+      endItem.append(turnEnd, endText)
+      fragment.append(endItem)
+    }
+  }
+
   list.append(fragment)
   list.scrollTop = list.scrollHeight
 }
