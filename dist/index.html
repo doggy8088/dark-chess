@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#1c1512" />
+  <title>台灣暗棋 · Taiwan Dark Chess</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23e8d5b0'/%3E%3Ccircle cx='32' cy='32' r='26' fill='none' stroke='%23a33327' stroke-width='3'/%3E%3Ctext x='32' y='44' font-size='32' text-anchor='middle' fill='%23a33327' font-family='serif' font-weight='bold'%3E暗%3C/text%3E%3C/svg%3E" />
+  <script type="module" crossorigin src="/assets/index-CisjEzUh.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-DMgjJAt-.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- LOADING -->
+    <section id="screen-loading" class="screen">
+      <div class="loading-inner">
+        <div class="loading-mark" aria-hidden="true"><span>暗</span></div>
+        <p id="loading-text">正在準備棋盤…</p>
+        <div class="loading-bar" aria-hidden="true"><div id="loading-bar-fill"></div></div>
+      </div>
+    </section>
+
+    <!-- ERROR -->
+    <section id="screen-error" class="screen" hidden>
+      <div class="error-inner">
+        <h2 id="error-title">發生錯誤</h2>
+        <p id="error-message"></p>
+        <button id="btn-error-reload" class="btn btn-primary" type="button" aria-label="重新載入頁面">重新載入</button>
+      </div>
+    </section>
+
+    <!-- HOME -->
+    <section id="screen-home" class="screen" hidden>
+      <div class="home-inner">
+        <p class="home-eyebrow">傳統桌上棋戲</p>
+        <h1 class="home-title">台灣暗棋</h1>
+        <p class="home-subtitle">Taiwan Dark Chess</p>
+        <div class="home-actions">
+          <button id="btn-home-resume" class="btn btn-primary" type="button" hidden aria-label="繼續上一局">繼續上一局</button>
+          <button id="btn-home-start" class="btn btn-primary" type="button" aria-label="開始遊戲">開始遊戲</button>
+          <button id="btn-home-rules" class="btn btn-ghost" type="button" aria-label="閱讀遊戲規則">遊戲規則</button>
+        </div>
+        <p class="home-footnote">Taiwan Dark Chess Rules v1 · 雙人同機對戰</p>
+      </div>
+    </section>
+
+    <!-- SETUP -->
+    <section id="screen-setup" class="screen" hidden>
+      <div class="setup-inner">
+        <h2 class="setup-title">對局設定</h2>
+        <form id="setup-form">
+          <label class="field">
+            <span class="field-label">玩家一名稱</span>
+            <input id="input-p1" name="p1" type="text" maxlength="12" autocomplete="off" placeholder="玩家一" />
+          </label>
+          <label class="field">
+            <span class="field-label">玩家二名稱</span>
+            <input id="input-p2" name="p2" type="text" maxlength="12" autocomplete="off" placeholder="玩家二" />
+          </label>
+          <fieldset class="field">
+            <legend class="field-label">先手</legend>
+            <div class="segmented" role="radiogroup" aria-label="先手方式">
+              <label class="segment"><input type="radio" name="first" value="p1" checked /><span>玩家一先手</span></label>
+              <label class="segment"><input type="radio" name="first" value="random" /><span>隨機先手</span></label>
+            </div>
+          </fieldset>
+          <label class="field field-row">
+            <span class="field-label">音效</span>
+            <input id="input-sound" type="checkbox" checked class="switch" aria-label="開關音效" />
+          </label>
+          <div class="setup-actions">
+            <button type="button" id="btn-setup-back" class="btn btn-ghost" aria-label="返回首頁">返回</button>
+            <button type="submit" id="btn-setup-start" class="btn btn-primary" aria-label="開始對局">開始對局</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- GAME -->
+    <section id="screen-game" class="screen screen-game" hidden>
+      <div id="board-container" aria-label="暗棋棋盤"></div>
+
+      <header id="hud-top">
+        <button id="btn-menu" class="icon-btn" type="button" aria-label="開啟選單">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <div id="turn-indicator" role="status" aria-live="polite">
+          <span id="turn-color-chip" class="color-chip" aria-hidden="true"></span>
+          <span id="turn-text">－</span>
+        </div>
+        <div class="hud-meta">
+          <span id="hud-timer" aria-label="對局時間">0:00</span>
+          <span id="hud-nocapture" aria-label="無吃子回合數">無吃子 0/25</span>
+        </div>
+      </header>
+
+      <div id="hud-captured" aria-label="被吃棋子">
+        <div class="captured-row" id="captured-red-row">
+          <span class="captured-label chip-red">紅</span>
+          <div class="captured-list" id="captured-red"></div>
+          <span class="remaining" id="remaining-red">16</span>
+        </div>
+        <div class="captured-row" id="captured-black-row">
+          <span class="captured-label chip-black">黑</span>
+          <div class="captured-list" id="captured-black"></div>
+          <span class="remaining" id="remaining-black">16</span>
+        </div>
+      </div>
+
+      <aside id="panel-side">
+        <div class="panel-block">
+          <h3 class="panel-heading">對局紀錄</h3>
+          <ol id="history-list" aria-label="行棋紀錄"></ol>
+        </div>
+        <div class="panel-block panel-actions">
+          <button id="btn-side-rules" class="btn btn-ghost btn-small" type="button" aria-label="開啟遊戲規則">遊戲規則</button>
+          <button id="btn-side-fairness" class="btn btn-ghost btn-small" type="button" aria-label="檢視公平性資訊">公平性</button>
+          <button id="btn-side-restart" class="btn btn-ghost btn-small" type="button" aria-label="重新開始對局">重新開始</button>
+        </div>
+      </aside>
+
+      <footer id="hud-bottom">
+        <button id="btn-history" class="btn btn-ghost btn-small" type="button" aria-label="開啟對局紀錄" aria-expanded="false">紀錄</button>
+        <p id="hud-hint" aria-live="polite"></p>
+      </footer>
+
+      <div id="history-drawer" hidden>
+        <div class="drawer-head">
+          <h3>對局紀錄</h3>
+          <button id="btn-history-close" class="icon-btn" type="button" aria-label="關閉紀錄">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+        <ol id="history-list-mobile" aria-label="行棋紀錄"></ol>
+      </div>
+    </section>
+  </div>
+
+  <!-- MENU DIALOG -->
+  <dialog id="dialog-menu" aria-label="遊戲選單">
+    <div class="dialog-body">
+      <h2 class="dialog-title">選單</h2>
+      <div class="menu-list">
+        <button id="btn-menu-sound" class="btn btn-ghost" type="button" aria-label="切換音效">音效：開</button>
+        <button id="btn-menu-rules" class="btn btn-ghost" type="button" aria-label="開啟遊戲規則">遊戲規則</button>
+        <button id="btn-menu-fairness" class="btn btn-ghost" type="button" aria-label="檢視公平性資訊">公平性驗證</button>
+        <button id="btn-menu-draw" class="btn btn-ghost" type="button" aria-label="雙方同意和棋">雙方同意和棋</button>
+        <button id="btn-menu-restart" class="btn btn-ghost" type="button" aria-label="重新開始對局">重新開始</button>
+        <button id="btn-menu-home" class="btn btn-ghost" type="button" aria-label="回到主選單">回主選單</button>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-primary dialog-close" type="button" aria-label="關閉選單">關閉</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- RULES DIALOG -->
+  <dialog id="dialog-rules" aria-label="遊戲規則">
+    <div class="dialog-body dialog-scroll">
+      <h2 class="dialog-title">遊戲規則</h2>
+      <p class="rules-version">Taiwan Dark Chess Rules v1</p>
+
+      <h3>棋盤與棋子</h3>
+      <p>棋盤為 4×8 共 32 格。使用一副完整中國象棋 32 顆：紅方 帥×1、仕×2、相×2、俥×2、傌×2、炮×2、兵×5;黑方 將×1、士×2、象×2、車×2、馬×2、包×2、卒×5。開局時全部棋子背面朝上、以密碼學亂數隨機排列填滿棋盤。</p>
+
+      <h3>首翻決定陣營</h3>
+      <p>開局時尚無紅黑之分。第一位玩家第一次翻出的棋子顏色,即為該玩家的陣營;對手自動取得另一色。此後整局固定不變。</p>
+
+      <h3>回合</h3>
+      <p>每回合只能執行一項動作:<strong>翻開</strong>一顆暗棋、<strong>移動</strong>一顆自己的明棋、或<strong>吃掉</strong>一顆對方的明棋。動作完成後立即輪到對方。</p>
+
+      <h3>移動</h3>
+      <p>所有棋子(含炮的普通移動)一律只能上、下、左、右移動一格到相鄰空位。不能斜走、不能走多格。馬不走日、象不走田、車不能直衝、將帥無九宮限制。</p>
+
+      <h3>階級與吃子</h3>
+      <p>階級由大至小:帥/將 &gt; 仕/士 &gt; 相/象 &gt; 俥/車 &gt; 傌/馬 &gt; 炮/包 &gt; 兵/卒。一般棋子須與目標相鄰,採「大吃小、同級互吃」。</p>
+
+      <h3>兵/卒 與 帥/將 的特殊剋制</h3>
+      <p>兵/卒只能吃敵方的兵/卒與帥/將;帥/將可吃除敵方兵/卒以外的所有棋子——<strong>帥/將不能吃兵/卒,而兵/卒可以吃帥/將。</strong></p>
+
+      <h3>炮/包 的吃子</h3>
+      <p>炮吃子時須與目標同列或同行,且兩者之間<strong>恰好隔一顆棋</strong>(炮架)。炮架可為任何棋:我方、敵方、明棋或暗棋皆可。目標必須是已翻開的敵方棋子。炮吃子完全不論階級,可吃任何棋。</p>
+      <div class="cannon-diagram">
+        <p class="diagram-label ok">合法(恰好一個炮架):</p>
+        <div class="diagram-row"><span class="dg piece">炮</span><span class="dg">·</span><span class="dg piece">棋</span><span class="dg">·</span><span class="dg">·</span><span class="dg enemy">敵</span></div>
+        <p class="diagram-label bad">非法(沒有炮架):</p>
+        <div class="diagram-row"><span class="dg piece">炮</span><span class="dg">·</span><span class="dg">·</span><span class="dg enemy">敵</span></div>
+        <p class="diagram-label bad">非法(兩個炮架):</p>
+        <div class="diagram-row"><span class="dg piece">炮</span><span class="dg piece">棋</span><span class="dg">·</span><span class="dg piece">棋</span><span class="dg">·</span><span class="dg enemy">敵</span></div>
+      </div>
+
+      <h3>暗棋</h3>
+      <p>尚未翻開的棋子不能被任何棋子吃掉(包括炮),但可以作為炮架。</p>
+
+      <h3>勝負</h3>
+      <p>將對方所有棋子全部吃光者獲勝。</p>
+
+      <h3>和棋</h3>
+      <p>採 Taiwan Tournament Rules:雙方連續 25 回合(翻棋與移動皆計入)沒有任何吃子時,判定和棋;吃子即歸零重計。雙方亦可協議和棋。</p>
+
+      <h3>公平性</h3>
+      <p>開局時系統以 crypto.getRandomValues 洗牌,並將「完整初始排列 + 隨機 nonce」以 SHA-256 產生本局承諾雜湊(Commitment Hash)先行公布。對局結束後公開初始排列與 nonce,任何人皆可重新計算驗證,證明遊戲途中未更動任何暗棋。</p>
+
+      <div class="dialog-actions">
+        <button class="btn btn-primary dialog-close" type="button" aria-label="關閉規則">關閉</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- FAIRNESS DIALOG -->
+  <dialog id="dialog-fairness" aria-label="公平性驗證">
+    <div class="dialog-body dialog-scroll">
+      <h2 class="dialog-title">公平性驗證</h2>
+      <p>本局開始前,系統已對「完整初始排列 + nonce」計算 SHA-256 承諾:</p>
+      <code id="fairness-hash" class="hash-block"></code>
+      <div id="fairness-playing">
+        <p class="muted">對局進行中不公開初始排列與 nonce。結束後可在此驗證本局公平性。</p>
+      </div>
+      <div id="fairness-finished" hidden>
+        <h3>Nonce</h3>
+        <code id="fairness-nonce" class="hash-block"></code>
+        <h3>初始排列(第 1 列 → 第 4 列)</h3>
+        <div id="fairness-layout" class="layout-grid"></div>
+        <button id="btn-verify-fairness" class="btn btn-primary" type="button" aria-label="驗證本局公平性">驗證本局公平性</button>
+        <p id="fairness-result" role="status" aria-live="polite"></p>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost dialog-close" type="button" aria-label="關閉公平性視窗">關閉</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- CONFIRM DIALOG -->
+  <dialog id="dialog-confirm" aria-label="確認">
+    <div class="dialog-body">
+      <h2 class="dialog-title" id="confirm-title">確認</h2>
+      <p id="confirm-message"></p>
+      <div class="dialog-actions">
+        <button id="btn-confirm-cancel" class="btn btn-ghost" type="button" aria-label="取消">取消</button>
+        <button id="btn-confirm-ok" class="btn btn-primary" type="button" aria-label="確認">確認</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- GAME OVER DIALOG -->
+  <dialog id="dialog-gameover" aria-label="對局結束">
+    <div class="dialog-body">
+      <h2 class="dialog-title" id="gameover-title">對局結束</h2>
+      <p id="gameover-subtitle" class="gameover-subtitle"></p>
+      <dl class="gameover-stats">
+        <div><dt>回合數</dt><dd id="stat-turns">0</dd></div>
+        <div><dt>紅方吃子</dt><dd id="stat-red-captures">0</dd></div>
+        <div><dt>黑方吃子</dt><dd id="stat-black-captures">0</dd></div>
+        <div><dt>對局時間</dt><dd id="stat-time">0:00</dd></div>
+      </dl>
+      <div class="dialog-actions dialog-actions-column">
+        <button id="btn-again" class="btn btn-primary" type="button" aria-label="再來一局">再來一局</button>
+        <button id="btn-gameover-fairness" class="btn btn-ghost" type="button" aria-label="驗證本局公平性">驗證本局公平性</button>
+        <button id="btn-gameover-home" class="btn btn-ghost" type="button" aria-label="回主選單">回主選單</button>
+      </div>
+    </div>
+  </dialog>
+
+</body>
+</html>
