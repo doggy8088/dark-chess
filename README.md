@@ -15,6 +15,19 @@ npm run build    # 型別檢查 + Production build
 npm run preview  # 預覽 production build
 ```
 
+或使用 Makefile（`make help` 列出全部指令）：
+
+```bash
+make install     # npm ci
+make dev         # 開發伺服器
+make test        # 單元測試（make watch 為 watch 模式）
+make build       # 型別檢查 + production build
+make preview     # 本機預覽 production build
+make deploy      # 測試 + build 後推上 main，並等待 GitHub Pages 部署完成
+make status      # 查看最近的部署 workflow
+make open        # 開啟正式站 https://dark-chess.gh.miniasp.com
+```
+
 ## 技術架構
 
 - **Vite + TypeScript（strict）**
