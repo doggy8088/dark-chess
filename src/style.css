@@ -132,6 +132,56 @@ button { font: inherit; color: inherit; }
 
 .home-footnote { margin-top: 40px; color: #7d6f5c; font-size: 12px; letter-spacing: .06em; }
 
+/* Live games board (home) */
+#live-games {
+  margin: 26px auto 0;
+  max-width: 420px;
+  text-align: left;
+  background: rgba(20,13,10,.55);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+#live-games[hidden] { display: none; }
+.live-games-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  letter-spacing: .18em;
+  color: var(--accent);
+  font-weight: 600;
+}
+#live-games-list {
+  margin: 0; padding: 0;
+  list-style: none;
+  max-height: 200px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.live-game {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 2px;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+}
+.live-game:last-child { border-bottom: 0; }
+.live-game-info { flex: 1; min-width: 0; }
+.live-game-names {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.live-game-names .vs { color: #7d6f5c; font-weight: 400; margin: 0 4px; }
+.live-game-score {
+  font-size: 12px;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.live-game-score .hot { color: var(--warn); font-weight: 700; }
+.btn-watch { flex: none; }
+
 .home-copyright { margin-top: 8px; color: #7d6f5c; font-size: 12px; letter-spacing: .04em; }
 .home-copyright a {
   color: var(--accent);
@@ -687,6 +737,211 @@ dialog[open] { animation: dialog-in .18s ease; }
 }
 .gameover-stats dt { font-size: 12px; color: var(--ink-dim); margin: 0 0 2px; }
 .gameover-stats dd { font-size: 20px; font-weight: 700; margin: 0; font-variant-numeric: tabular-nums; }
+
+/* ============ Online mode ============ */
+/* Elements tagged .online-only appear only while an online game is active;
+   .hotseat-only elements disappear there. Toggled via body.mode-online.
+   Only the hiding side uses !important — in online mode each element keeps
+   its own display value (the chat drawer needs its flex layout). */
+body:not(.mode-online) .online-only { display: none !important; }
+body.mode-online .hotseat-only { display: none !important; }
+
+/* Move countdown in the timer slot */
+#hud-timer.countdown { color: var(--accent); }
+#hud-timer.countdown-urgent { color: var(--danger); animation: countdown-pulse 1s ease infinite; }
+@keyframes countdown-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .45; }
+}
+
+#opponent-status { color: var(--warn); font-weight: 600; }
+
+/* Online setup / waiting screens */
+.online-rules-note {
+  background: #1d1512;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: 18px;
+}
+.online-rules-note p { margin: 4px 0; font-size: 13px; color: var(--ink-dim); line-height: 1.6; }
+.online-rules-note strong { color: var(--accent); }
+
+.wait-inner { text-align: center; }
+.wait-hint { color: var(--ink-dim); font-size: 14px; line-height: 1.7; margin: 0 0 14px; }
+.invite-url { text-align: left; }
+.wait-actions { margin: 12px 0 18px; }
+.invite-qr {
+  display: block;
+  margin: 0 auto 16px;
+  border-radius: var(--radius);
+  background: var(--ink);
+  padding: 6px;
+}
+.wait-status {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  color: var(--ink-dim); font-size: 13px; margin: 0 0 18px;
+}
+.wait-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--accent);
+  animation: wait-blink 1.2s ease infinite;
+}
+@keyframes wait-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .25; }
+}
+
+/* Chat toggle (floating, bottom-right) */
+#btn-chat {
+  position: absolute;
+  right: calc(env(safe-area-inset-right) + 10px);
+  bottom: calc(env(safe-area-inset-bottom) + 28px);
+  z-index: 5;
+  background: rgba(20,13,10,.78);
+  backdrop-filter: blur(6px);
+}
+body.mode-online #hud-bottom { padding-right: 84px; }
+
+.chat-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.chat-badge[hidden] { display: none; }
+
+/* Chat drawer */
+#chat-drawer {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  max-height: 62%;
+  overflow: hidden;
+  background: var(--bg-raise);
+  border-top: 1px solid var(--line);
+  border-radius: 16px 16px 0 0;
+  padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+  box-shadow: 0 -14px 40px rgba(0,0,0,.55);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 6;
+  animation: drawer-in .22s ease;
+}
+#chat-drawer[hidden] { display: none !important; }
+
+#chat-list {
+  margin: 0; padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  min-height: 90px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  scrollbar-width: thin;
+}
+.chat-msg { display: flex; flex-direction: column; max-width: 86%; }
+.chat-msg.mine { align-self: flex-end; align-items: flex-end; }
+.chat-msg.theirs { align-self: flex-start; align-items: flex-start; }
+.chat-who { font-size: 11px; color: #7d6f5c; margin-bottom: 2px; }
+.chat-bubble {
+  padding: 7px 12px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: break-word;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.chat-msg.mine .chat-bubble { background: #3a2c1d; border: 1px solid var(--accent); color: var(--ink); border-bottom-right-radius: 4px; }
+.chat-msg.theirs .chat-bubble { background: #1d1512; border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.chat-msg.canned .chat-bubble { font-weight: 700; }
+.chat-notice { text-align: center; font-size: 12px; color: #8d7f6b; list-style: none; padding: 2px 0; }
+
+#chat-canned {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+  flex: none;
+}
+#chat-canned::-webkit-scrollbar { display: none; }
+.canned-chip {
+  flex: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #1d1512;
+  color: var(--ink);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.canned-chip:hover { background: #3a2c1d; border-color: var(--accent); }
+.canned-chip:active { transform: scale(.96); }
+
+#chat-form { display: flex; gap: 8px; flex: none; }
+#chat-form input {
+  flex: 1;
+  min-height: 42px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: #1d1512;
+  color: var(--ink);
+  font-size: 15px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+#chat-form input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+
+/* Reconnect overlay */
+#online-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8,5,4,.6);
+  backdrop-filter: blur(3px);
+}
+#online-overlay[hidden] { display: none !important; }
+.overlay-card {
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 22px 30px;
+  box-shadow: 0 18px 48px rgba(0,0,0,.5);
+}
+.overlay-card p { margin: 0; font-size: 15px; letter-spacing: .06em; }
+
+.gameover-online-status { color: var(--warn) !important; font-size: 14px !important; min-height: 1.4em; }
+
+/* Desktop: chat as a fixed side sheet on the right, clear of the side panel */
+@media (min-width: 1024px) {
+  #chat-drawer {
+    left: auto;
+    right: calc(env(safe-area-inset-right) + 304px);
+    bottom: 12px;
+    width: 340px;
+    max-height: 480px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+  }
+  #btn-chat {
+    right: calc(env(safe-area-inset-right) + 304px);
+    bottom: 12px;
+  }
+  body.mode-online #btn-chat[aria-expanded="true"] { display: none !important; }
+}
 
 /* ============ Reduced motion ============ */
 @media (prefers-reduced-motion: reduce) {

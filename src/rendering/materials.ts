@@ -15,6 +15,7 @@ export class MaterialLibrary {
   readonly table: THREE.MeshStandardMaterial
   readonly pieceBody: THREE.MeshStandardMaterial
   readonly pieceBack: THREE.MeshStandardMaterial
+  readonly unknownFace: THREE.MeshStandardMaterial
   private readonly faces = new Map<string, THREE.MeshStandardMaterial>()
   private readonly textures: THREE.Texture[] = []
 
@@ -54,6 +55,14 @@ export class MaterialLibrary {
       roughness: 0.5,
       metalness: 0.04,
     })
+
+    // Online mode: the server hides face-down identities, so their face is
+    // rendered with the same pattern as the back until the flip reveals it.
+    this.unknownFace = new THREE.MeshStandardMaterial({
+      map: backTexture,
+      roughness: 0.5,
+      metalness: 0.04,
+    })
   }
 
   face(color: Color, type: PieceType): THREE.MeshStandardMaterial {
@@ -82,6 +91,7 @@ export class MaterialLibrary {
     this.table.dispose()
     this.pieceBody.dispose()
     this.pieceBack.dispose()
+    this.unknownFace.dispose()
     for (const material of this.faces.values()) material.dispose()
     this.faces.clear()
   }

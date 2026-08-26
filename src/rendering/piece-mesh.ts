@@ -37,7 +37,7 @@ export class PieceMeshFactory {
     this.backGeometry.translate(0, -h - 0.0015, 0)
   }
 
-  create(piece: Piece): THREE.Group {
+  create(piece: Piece, options?: { hiddenFace?: boolean }): THREE.Group {
     const group = new THREE.Group()
     group.name = `piece:${piece.id}`
 
@@ -45,7 +45,13 @@ export class PieceMeshFactory {
     body.castShadow = true
     body.receiveShadow = true
 
-    const face = new THREE.Mesh(this.faceGeometry, this.materials.face(piece.color, piece.type))
+    // Online mode passes hiddenFace for pieces whose identity the server has
+    // not revealed; the face material is swapped in via revealFace() on flip.
+    const faceMaterial = options?.hiddenFace
+      ? this.materials.unknownFace
+      : this.materials.face(piece.color, piece.type)
+    const face = new THREE.Mesh(this.faceGeometry, faceMaterial)
+    face.name = 'face'
     const back = new THREE.Mesh(this.backGeometry, this.materials.pieceBack)
 
     for (const mesh of [body, face, back]) {
@@ -54,6 +60,14 @@ export class PieceMeshFactory {
     }
     group.userData.pieceId = piece.id
     return group
+  }
+
+  /** Swaps a hidden face for its true identity (server just revealed it). */
+  revealFace(group: THREE.Group, color: Piece['color'], type: Piece['type']): void {
+    const face = group.getObjectByName('face')
+    if (face instanceof THREE.Mesh) {
+      face.material = this.materials.face(color, type)
+    }
   }
 
   dispose(): void {

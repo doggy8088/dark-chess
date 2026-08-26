@@ -1,6 +1,6 @@
 import type { GameState } from '../game/types'
 import { COLOR_NAME, NO_CAPTURE_DRAW_LIMIT, PIECE_CHAR } from '../game/constants'
-import { capturedPieces, currentPlayer, remainingPieces } from '../game/game-state'
+import { capturedPieces, currentPlayer } from '../game/game-state'
 import { el, formatDuration } from './dom'
 import { renderHistory } from './history'
 
@@ -60,7 +60,9 @@ export class Hud {
         chip.textContent = PIECE_CHAR[color][piece.type]
         container.append(chip)
       }
-      const remaining = remainingPieces(state, color).length
+      // Derived from captures only: face-down identities may be redacted
+      // (online mode), and 16 minus captured is the same number anyway.
+      const remaining = 16 - capturedPieces(state, color).length
       const label = color === 'red' ? this.remainingRed : this.remainingBlack
       label.textContent = `剩 ${remaining}`
     }
@@ -68,6 +70,20 @@ export class Hud {
 
   setTimer(elapsedMs: number): void {
     this.timer.textContent = formatDuration(elapsedMs)
+    this.timer.classList.remove('countdown', 'countdown-urgent')
+  }
+
+  /** Online mode: per-move countdown in the timer slot; red pulse under 10s. */
+  setMoveCountdown(remainingMs: number | null): void {
+    if (remainingMs === null) {
+      this.timer.textContent = '－'
+      this.timer.classList.remove('countdown', 'countdown-urgent')
+      return
+    }
+    const clamped = Math.max(0, remainingMs)
+    this.timer.textContent = formatDuration(clamped)
+    this.timer.classList.add('countdown')
+    this.timer.classList.toggle('countdown-urgent', clamped < 10_000)
   }
 
   showHint(message: string): void {

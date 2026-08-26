@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import type { Action, GameState, Position } from './game/types'
+import type { Action, Color, GameState, PieceType, Position } from './game/types'
 import { applyAction, validateAction } from './game/actions'
 import { currentPlayer, findPiecePosition } from './game/game-state'
 import { getLegalCaptures, getLegalMoves } from './game/rules'
@@ -18,6 +18,12 @@ export interface ControllerCallbacks {
   onStateChanged(state: GameState): void
   onGameOver(state: GameState): void
   onHint(message: string): void
+  /**
+   * Online mode: when set, locally-validated actions are handed to this sink
+   * (sent to the server) instead of being applied; the server echoes the
+   * applied action back through applyServerAction().
+   */
+  actionSink?(action: Action): void
 }
 
 interface PointerTracking {
@@ -38,6 +44,15 @@ interface PointerTracking {
  */
 export class GameController {
   state!: GameState
+
+  /** Online mode: the seat this client controls; null = hotseat (both). */
+  localPlayerIndex: 0 | 1 | null = null
+  /** False for spectators: taps are ignored entirely. */
+  inputEnabled = true
+  /** Online mode: piece ids whose identity the server has not revealed. */
+  hiddenPieceIds: ReadonlySet<string> | null = null
+  /** True while an action sent to the server awaits its echo/rejection. */
+  private pendingAction = false
 
   private readonly materials = new MaterialLibrary()
   private readonly factory = new PieceMeshFactory(this.materials)
@@ -78,6 +93,7 @@ export class GameController {
   /** Starts presenting a game state (new game or restored save). */
   startSession(state: GameState, options: { intro: boolean }): void {
     this.state = state
+    this.pendingAction = false
     this.clearSelection()
     this.ticker.clear()
     for (const mesh of this.meshes.values()) this.sceneContext.piecesGroup.remove(mesh)
@@ -88,7 +104,7 @@ export class GameController {
       if (piece.captured) continue
       const position = findPiecePosition(state, piece.id)
       if (!position) continue
-      const mesh = this.factory.create(piece)
+      const mesh = this.factory.create(piece, { hiddenFace: this.hiddenPieceIds?.has(piece.id) ?? false })
       const pose = this.logicalPose(piece.id)
       mesh.position.set(pose.position.x, pose.position.y, pose.position.z)
       mesh.quaternion.set(pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w)
@@ -156,7 +172,12 @@ export class GameController {
   }
 
   private handleTap(clientX: number, clientY: number): void {
-    if (!this.state || this.state.status !== 'playing' || this.queue.busy) return
+    if (!this.inputEnabled) return
+    if (!this.state || this.state.status !== 'playing' || this.queue.busy || this.pendingAction) return
+    if (this.localPlayerIndex !== null && this.state.currentPlayerIndex !== this.localPlayerIndex) {
+      this.callbacks.onHint('還沒輪到你')
+      return
+    }
     const picked = this.picker.pick(clientX, clientY)
 
     if (picked.pieceId) {
@@ -265,6 +286,15 @@ export class GameController {
       return
     }
 
+    // Online mode: the server is authoritative — send the intent and wait
+    // for applyServerAction()/rejectPendingAction() instead of applying here.
+    if (this.callbacks.actionSink) {
+      this.pendingAction = true
+      this.clearSelection()
+      this.callbacks.actionSink(action)
+      return
+    }
+
     const previous = this.state
     this.state = applyAction(this.state, action)
     this.clearSelection()
@@ -284,6 +314,47 @@ export class GameController {
       .then(() => {
         if (this.state.status !== 'playing') this.callbacks.onGameOver(this.state)
       })
+  }
+
+  /**
+   * Online mode: presents an action the server already applied — my own
+   * confirmed action or the opponent's. `nextState` is the server's state
+   * (already converted from the redacted DTO); `reveal` carries the true
+   * identity of a just-flipped piece so its face material can be swapped in
+   * before the flip animation shows it.
+   */
+  applyServerAction(action: Action, nextState: GameState, reveal?: { pieceId: string; color: Color; type: PieceType }): void {
+    this.pendingAction = false
+    const previous = this.state
+    this.state = nextState
+    if (reveal) {
+      const mesh = this.meshes.get(reveal.pieceId)
+      if (mesh) this.factory.revealFace(mesh, reveal.color, reveal.type)
+    }
+    this.clearSelection()
+    this.callbacks.onStateChanged(this.state)
+
+    void this.queue
+      .enqueue(() => {
+        switch (action.kind) {
+          case 'flip':
+            return this.animateFlip(action.pieceId)
+          case 'move':
+            return this.animateMove(action.pieceId)
+          case 'capture':
+            return this.animateCapture(action.attackerId, action.targetId, previous)
+        }
+      })
+      .then(() => {
+        if (this.state.status !== 'playing') this.callbacks.onGameOver(this.state)
+      })
+  }
+
+  /** Online mode: the server rejected the pending action; unlock input. */
+  rejectPendingAction(message: string): void {
+    this.pendingAction = false
+    this.callbacks.onHint(message)
+    this.sounds.play('invalid')
   }
 
   // ----------------------------------------------------------- animations

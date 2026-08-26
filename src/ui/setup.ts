@@ -51,7 +51,16 @@ export function setupHomeAndSetupScreens(callbacks: SetupCallbacks): {
   }
 }
 
-const SCREEN_IDS = ['screen-loading', 'screen-error', 'screen-home', 'screen-setup', 'screen-game'] as const
+const SCREEN_IDS = [
+  'screen-loading',
+  'screen-error',
+  'screen-home',
+  'screen-setup',
+  'screen-online-setup',
+  'screen-online-join',
+  'screen-online-wait',
+  'screen-game',
+] as const
 export type ScreenId = (typeof SCREEN_IDS)[number]
 
 export function showScreen(id: ScreenId): void {

@@ -37,9 +37,14 @@
         <div class="home-actions">
           <button id="btn-home-resume" class="btn btn-primary" type="button" hidden aria-label="繼續上一局">繼續上一局</button>
           <button id="btn-home-start" class="btn btn-primary" type="button" aria-label="開始遊戲">開始遊戲</button>
+          <button id="btn-home-online" class="btn btn-primary" type="button" hidden aria-label="線上對戰">線上對戰</button>
           <button id="btn-home-rules" class="btn btn-ghost" type="button" aria-label="閱讀遊戲規則">遊戲規則</button>
         </div>
-        <p class="home-footnote">Taiwan Dark Chess Rules v1 · 雙人同機對戰</p>
+        <div id="live-games" hidden>
+          <h3 class="live-games-title">進行中的對戰</h3>
+          <ul id="live-games-list" aria-label="進行中的對戰列表"></ul>
+        </div>
+        <p class="home-footnote">Taiwan Dark Chess Rules v1 · 同機對戰 / 線上對戰</p>
         <p class="home-copyright">Copyright © 2026 <a href="https://www.facebook.com/will.fans/" target="_blank" rel="noopener noreferrer" aria-label="Will 保哥的 Facebook 粉絲專頁">Will 保哥</a></p>
       </div>
     </section>
@@ -76,6 +81,65 @@
       </div>
     </section>
 
+    <!-- ONLINE SETUP -->
+    <section id="screen-online-setup" class="screen" hidden>
+      <div class="setup-inner">
+        <h2 class="setup-title">線上對戰</h2>
+        <form id="online-setup-form">
+          <label class="field">
+            <span class="field-label">你的暱稱</span>
+            <input id="input-online-name" name="online-name" type="text" maxlength="12" autocomplete="off" placeholder="玩家一" />
+          </label>
+          <div class="online-rules-note">
+            <p>・每一步限時 <strong>60 秒</strong>，逾時判負</p>
+            <p>・斷線後有 <strong>90 秒</strong>重連寬限，同一網址即可回到對局</p>
+            <p>・開局先公布公平性承諾雜湊，結束後可驗證</p>
+          </div>
+          <div class="setup-actions">
+            <button type="button" id="btn-online-back" class="btn btn-ghost" aria-label="返回首頁">返回</button>
+            <button type="submit" id="btn-online-create" class="btn btn-primary" aria-label="建立對戰邀請">建立對戰邀請</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- ONLINE JOIN (opened an invite link, no seat yet) -->
+    <section id="screen-online-join" class="screen" hidden>
+      <div class="setup-inner">
+        <h2 class="setup-title">加入對戰</h2>
+        <p class="wait-hint">輸入你的暱稱後加入對戰；若座位已滿，將以觀眾身分進場（可聊天，不能下棋）。</p>
+        <form id="online-join-form">
+          <label class="field">
+            <span class="field-label">你的暱稱</span>
+            <input id="input-join-name" name="join-name" type="text" maxlength="12" autocomplete="off" placeholder="玩家二" />
+          </label>
+          <div class="online-rules-note">
+            <p>・每一步限時 <strong>60 秒</strong>，逾時判負</p>
+            <p>・斷線後有 <strong>90 秒</strong>重連寬限，同一網址即可回到對局</p>
+          </div>
+          <div class="setup-actions">
+            <button type="button" id="btn-join-home" class="btn btn-ghost" aria-label="回主選單">回主選單</button>
+            <button type="submit" id="btn-join-go" class="btn btn-primary" aria-label="加入對戰">加入對戰</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- ONLINE WAITING -->
+    <section id="screen-online-wait" class="screen" hidden>
+      <div class="setup-inner wait-inner">
+        <h2 class="setup-title">等待對手加入…</h2>
+        <p class="wait-hint">把下面的連結（或 QR Code）傳給對手，開啟即可立刻對戰。</p>
+        <code id="invite-url" class="hash-block invite-url"></code>
+        <div class="wait-actions">
+          <button id="btn-copy-invite" class="btn btn-primary" type="button" aria-label="複製邀請連結">複製連結</button>
+        </div>
+        <canvas id="invite-qr" class="invite-qr" aria-label="邀請連結 QR Code"></canvas>
+        <p class="wait-status"><span class="wait-dot" aria-hidden="true"></span>對手加入後將自動開始</p>
+        <button id="btn-wait-cancel" class="btn btn-ghost" type="button" aria-label="回主選單">回主選單</button>
+      </div>
+    </section>
+
     <!-- GAME -->
     <section id="screen-game" class="screen screen-game" hidden>
       <div id="board-container" aria-label="暗棋棋盤"></div>
@@ -91,6 +155,7 @@
         <div class="hud-meta">
           <span id="hud-timer" aria-label="對局時間">0:00</span>
           <span id="hud-nocapture" aria-label="無吃子回合數">無吃子 0/25</span>
+          <span id="opponent-status" class="online-only" aria-live="polite" hidden></span>
         </div>
       </header>
 
@@ -115,7 +180,7 @@
         <div class="panel-block panel-actions">
           <button id="btn-side-rules" class="btn btn-ghost btn-small" type="button" aria-label="開啟遊戲規則">遊戲規則</button>
           <button id="btn-side-fairness" class="btn btn-ghost btn-small" type="button" aria-label="檢視公平性資訊">公平性</button>
-          <button id="btn-side-restart" class="btn btn-ghost btn-small" type="button" aria-label="重新開始對局">重新開始</button>
+          <button id="btn-side-restart" class="btn btn-ghost btn-small hotseat-only" type="button" aria-label="重新開始對局">重新開始</button>
         </div>
       </aside>
 
@@ -135,6 +200,32 @@
         </div>
         <ol id="history-list-mobile" aria-label="行棋紀錄"></ol>
       </div>
+
+      <!-- ONLINE: chat toggle + drawer -->
+      <button id="btn-chat" class="btn btn-ghost btn-small online-only" type="button" aria-label="開啟聊天室" aria-expanded="false">
+        聊天<span id="chat-unread" class="chat-badge" hidden></span>
+      </button>
+      <div id="chat-drawer" class="online-only" hidden>
+        <div class="drawer-head">
+          <h3>聊天室</h3>
+          <button id="btn-chat-close" class="icon-btn" type="button" aria-label="關閉聊天室">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+        <ol id="chat-list" aria-label="聊天訊息" aria-live="polite"></ol>
+        <div id="chat-canned" aria-label="快速訊息"></div>
+        <form id="chat-form">
+          <input id="chat-input" type="text" maxlength="120" autocomplete="off" placeholder="輸入訊息…" aria-label="聊天輸入框" />
+          <button type="submit" class="btn btn-primary btn-small" aria-label="送出訊息">送出</button>
+        </form>
+      </div>
+
+      <!-- ONLINE: reconnect overlay -->
+      <div id="online-overlay" class="online-only" hidden>
+        <div class="overlay-card">
+          <p id="online-overlay-text">連線中斷，重新連線中…</p>
+        </div>
+      </div>
     </section>
   </div>
 
@@ -146,9 +237,15 @@
         <button id="btn-menu-sound" class="btn btn-ghost" type="button" aria-label="切換音效">音效：開</button>
         <button id="btn-menu-rules" class="btn btn-ghost" type="button" aria-label="開啟遊戲規則">遊戲規則</button>
         <button id="btn-menu-fairness" class="btn btn-ghost" type="button" aria-label="檢視公平性資訊">公平性驗證</button>
-        <button id="btn-menu-draw" class="btn btn-ghost" type="button" aria-label="雙方同意和棋">雙方同意和棋</button>
-        <button id="btn-menu-restart" class="btn btn-ghost" type="button" aria-label="重新開始對局">重新開始</button>
-        <button id="btn-menu-home" class="btn btn-ghost" type="button" aria-label="回到主選單">回主選單</button>
+        <button id="btn-menu-draw" class="btn btn-ghost hotseat-only" type="button" aria-label="雙方同意和棋">雙方同意和棋</button>
+        <button id="btn-menu-restart" class="btn btn-ghost hotseat-only" type="button" aria-label="重新開始對局">重新開始</button>
+        <button id="btn-menu-endgame" class="btn btn-ghost hotseat-only" type="button" aria-label="結束對戰">結束對戰</button>
+        <button id="btn-menu-home" class="btn btn-ghost hotseat-only" type="button" aria-label="回到主選單">回主選單</button>
+        <button id="btn-menu-copylink" class="btn btn-ghost online-only" type="button" aria-label="複製邀請連結">複製邀請連結</button>
+        <button id="btn-menu-offer-draw" class="btn btn-ghost online-only" type="button" aria-label="向對手提出和棋">提出和棋</button>
+        <button id="btn-menu-resign" class="btn btn-ghost online-only" type="button" aria-label="認輸">認輸</button>
+        <button id="btn-menu-abort" class="btn btn-ghost online-only" type="button" aria-label="結束對戰">結束對戰</button>
+        <button id="btn-menu-leave" class="btn btn-ghost online-only" type="button" aria-label="離開房間">離開房間</button>
       </div>
       <div class="dialog-actions">
         <button class="btn btn-primary dialog-close" type="button" aria-label="關閉選單">關閉</button>
@@ -203,6 +300,12 @@
       <h3>公平性</h3>
       <p>開局時系統以 crypto.getRandomValues 洗牌,並將「完整初始排列 + 隨機 nonce」以 SHA-256 產生本局承諾雜湊(Commitment Hash)先行公布。對局結束後公開初始排列與 nonce,任何人皆可重新計算驗證,證明遊戲途中未更動任何暗棋。</p>
 
+      <h3>線上對戰</h3>
+      <p>建立對戰邀請後,把連結傳給對手即可立刻開始。線上模式由伺服器洗牌與裁定,暗棋內容在翻開前不會傳送到任何玩家的裝置。</p>
+      <p><strong>計時</strong>:每一步限時 60 秒,倒數歸零即判負。</p>
+      <p><strong>斷線</strong>:輪到的一方斷線時計時暫停,並開始 90 秒重連寬限;寬限逾時判負。中途斷線或關閉頁面,重新開啟同一個網址即可回到對局,並接續剩餘思考時間。</p>
+      <p><strong>和棋與認輸</strong>:可隨時認輸,或向對手提出和棋;連續 25 步無吃子仍判和棋。</p>
+
       <div class="dialog-actions">
         <button class="btn btn-primary dialog-close" type="button" aria-label="關閉規則">關閉</button>
       </div>
@@ -255,6 +358,7 @@
         <div><dt>黑方吃子</dt><dd id="stat-black-captures">0</dd></div>
         <div><dt>對局時間</dt><dd id="stat-time">0:00</dd></div>
       </dl>
+      <p id="gameover-online-status" class="gameover-online-status online-only" aria-live="polite" hidden></p>
       <div class="dialog-actions dialog-actions-column">
         <button id="btn-again" class="btn btn-primary" type="button" aria-label="再來一局">再來一局</button>
         <button id="btn-gameover-fairness" class="btn btn-ghost" type="button" aria-label="驗證本局公平性">驗證本局公平性</button>

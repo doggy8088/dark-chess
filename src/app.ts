@@ -1,14 +1,19 @@
-import type { GameState } from './game/types'
+import type { Action, Color, GameState, Piece, PieceType } from './game/types'
 import { agreeDraw } from './game/actions'
 import { createGame } from './game/game-state'
 import { createAllPieces } from './game/pieces'
 import { fisherYatesShuffle, secureRandomInt } from './game/shuffle'
 import { createCommitment, type FairnessData } from './game/fairness'
+import { GAME_OVER_REASON_TEXT, type GameSummary, type PresenceInfo } from './shared/protocol'
 import { createSceneContext, isWebGLAvailable, type SceneContext } from './rendering/scene'
 import { PhysicsWorld } from './physics/world'
-import { GameController } from './controller'
+import { GameController, type ControllerCallbacks } from './controller'
+import { OnlineSession, type GameOverInfo } from './online/session'
+import { loadRoomToken, saveRoomToken } from './online/tokens'
 import { SoundPlayer } from './audio/sounds'
 import { Hud } from './ui/hud'
+import { ChatPanel } from './ui/chat'
+import { setupOnlineLobby, showInvite } from './ui/online-lobby'
 import { confirmDialog, openDialog, setupDialogs, showFairnessDialog, showGameOverDialog } from './ui/dialogs'
 import { setupHomeAndSetupScreens, showError, showScreen } from './ui/setup'
 import { el } from './ui/dom'
@@ -22,9 +27,16 @@ import {
 } from './persistence/storage'
 
 type AppPhase = 'LOADING' | 'HOME' | 'SETUP' | 'INITIALIZING' | 'PLAYING' | 'GAME_OVER'
+type GameMode = 'hotseat' | 'online'
+
+export interface BootOptions {
+  /** Set when the page was opened via an invite URL (/r/:roomId). */
+  joinRoomId?: string
+}
 
 export class App {
   private phase: AppPhase = 'LOADING'
+  private mode: GameMode = 'hotseat'
   private physics!: PhysicsWorld
   private sceneContext: SceneContext | null = null
   private controller: GameController | null = null
@@ -36,8 +48,19 @@ export class App {
   private playingSince: number | null = null
   private lastFrame = performance.now()
   private homeControls!: { setResumeAvailable(available: boolean): void }
+  private lobbyControls!: { setCreating(busy: boolean): void; prefillName(): void }
 
-  async boot(): Promise<void> {
+  // Online state
+  private online: OnlineSession | null = null
+  private pendingJoinRoomId: string | null = null
+  private myOnlineName = ''
+  private onlineAvailable = false
+  private chat!: ChatPanel
+  private lastPresence: PresenceInfo | null = null
+  private titleFlashTimer = 0
+  private originalTitle = document.title
+
+  async boot(options: BootOptions = {}): Promise<void> {
     const loadingBar = el('loading-bar-fill')
     const loadingText = el('loading-text')
 
@@ -62,7 +85,13 @@ export class App {
 
     this.sounds.enabled = this.settings.soundEnabled
     setupDialogs()
+    this.chat = new ChatPanel({
+      onSend: (text) => this.online?.sendChat(text),
+      onCanned: (id) => this.online?.sendCanned(id),
+      nameFor: (seat) => this.controller?.state?.players[seat]?.name ?? (seat === 0 ? '玩家一' : '玩家二'),
+    })
     this.wireGameUi()
+    this.wireOnlineUi()
     this.homeControls = setupHomeAndSetupScreens({
       onStart: (settings) => {
         this.settings = settings
@@ -72,18 +101,30 @@ export class App {
       onResume: () => this.resumeGame(),
       onShowRules: () => openDialog('dialog-rules'),
     })
+    this.lobbyControls = setupOnlineLobby({
+      onCreate: (name) => void this.createOnlineRoom(name),
+      onBack: () => this.goHome(),
+    })
     el('btn-error-reload').addEventListener('click', () => window.location.reload())
+    this.detectOnlineAvailability()
 
     window.addEventListener('resize', () => this.handleResize())
     window.addEventListener('orientationchange', () => this.handleResize())
     document.addEventListener('visibilitychange', () => this.handleVisibilityChange())
     window.addEventListener('beforeunload', () => this.persist())
     window.setInterval(() => {
-      if (this.phase === 'PLAYING') this.hud.setTimer(this.currentElapsedMs())
+      if (this.phase === 'PLAYING' && this.mode === 'hotseat') this.hud.setTimer(this.currentElapsedMs())
     }, 500)
+    window.setInterval(() => {
+      if (this.phase === 'HOME' && this.onlineAvailable && !document.hidden) void this.refreshLiveGames()
+    }, 10_000)
 
     loadingBar.style.width = '100%'
-    this.goHome()
+    if (options.joinRoomId) {
+      this.joinOnlineRoom(options.joinRoomId)
+    } else {
+      this.goHome()
+    }
     requestAnimationFrame((time) => this.loop(time))
   }
 
@@ -91,9 +132,11 @@ export class App {
 
   private goHome(): void {
     this.phase = 'HOME'
+    this.leaveOnlineMode()
     this.pauseClock()
     this.homeControls.setResumeAvailable(loadSavedGame() !== null)
     showScreen('screen-home')
+    if (this.onlineAvailable) void this.refreshLiveGames()
   }
 
   private ensureScene(): SceneContext {
@@ -106,17 +149,26 @@ export class App {
   private ensureController(): GameController {
     const scene = this.ensureScene()
     if (!this.controller) {
-      this.controller = new GameController(scene, this.physics, this.sounds, {
+      const app = this
+      const callbacks: ControllerCallbacks = {
         onStateChanged: (state) => this.handleStateChanged(state),
         onGameOver: (state) => this.handleGameOver(state),
         onHint: (message) => this.hud.showHint(message),
-      })
+        get actionSink() {
+          // Online games send intents to the server; hotseat applies locally.
+          return app.mode === 'online' && app.online
+            ? (action: Action) => app.online?.sendAction(action)
+            : undefined
+        },
+      }
+      this.controller = new GameController(scene, this.physics, this.sounds, callbacks)
     }
     return this.controller
   }
 
   private async startNewGame(): Promise<void> {
     this.phase = 'INITIALIZING'
+    this.setMode('hotseat')
     const layout = fisherYatesShuffle(createAllPieces())
     this.fairness = await createCommitment(layout)
     const firstPlayerIndex: 0 | 1 = this.settings.firstPlayer === 'random' ? (secureRandomInt(2) as 0 | 1) : 0
@@ -137,6 +189,7 @@ export class App {
       this.homeControls.setResumeAvailable(false)
       return
     }
+    this.setMode('hotseat')
     this.fairness = saved.fairness
     this.elapsedBaseMs = saved.elapsedMs
     this.beginSession(saved.state, { intro: false })
@@ -146,12 +199,17 @@ export class App {
   private beginSession(state: GameState, options: { intro: boolean }): void {
     showScreen('screen-game')
     const controller = this.ensureController()
+    if (this.mode === 'hotseat') {
+      controller.localPlayerIndex = null
+      controller.hiddenPieceIds = null
+      controller.inputEnabled = true
+    }
     this.sceneContext?.resize()
     controller.startSession(state, options)
     controller.onViewChanged()
     this.hud.reset()
     this.hud.update(state)
-    this.hud.setTimer(this.currentElapsedMs())
+    if (this.mode === 'hotseat') this.hud.setTimer(this.currentElapsedMs())
     this.closeDrawer()
     this.phase = 'PLAYING'
     this.playingSince = performance.now()
@@ -162,12 +220,16 @@ export class App {
 
   private handleStateChanged(state: GameState): void {
     this.hud.update(state)
-    if (this.fairness) saveGame(state, this.fairness, this.currentElapsedMs())
+    if (this.mode === 'hotseat' && this.fairness) saveGame(state, this.fairness, this.currentElapsedMs())
   }
 
   private handleGameOver(state: GameState): void {
     this.phase = 'GAME_OVER'
     this.pauseClock()
+    if (this.mode === 'online') {
+      this.showOnlineGameOver(state)
+      return
+    }
     clearSavedGame()
     showGameOverDialog(state, this.elapsedBaseMs)
   }
@@ -190,6 +252,10 @@ export class App {
     }
     for (const id of ['btn-menu-fairness', 'btn-side-fairness', 'btn-gameover-fairness']) {
       el(id).addEventListener('click', () => {
+        if (this.mode === 'online') {
+          this.showOnlineFairness()
+          return
+        }
         const state = this.controller?.state
         if (this.fairness && state) {
           showFairnessDialog(this.fairness, state.status !== 'playing', state.pieces)
@@ -213,6 +279,7 @@ export class App {
     for (const id of ['btn-menu-restart', 'btn-side-restart']) {
       el(id).addEventListener('click', async () => {
         el<HTMLDialogElement>('dialog-menu').close()
+        if (this.mode === 'online') return
         const playing = this.controller?.state.status === 'playing'
         const confirmed = !playing || (await confirmDialog('重新開始', '目前棋局將被清除，確定要重新開始一局嗎？'))
         if (confirmed) {
@@ -222,6 +289,15 @@ export class App {
       })
     }
 
+    el('btn-menu-endgame').addEventListener('click', async () => {
+      el<HTMLDialogElement>('dialog-menu').close()
+      const sure = await confirmDialog('結束對戰', '目前棋局將被清除並回到主選單。確定要結束嗎？')
+      if (sure) {
+        clearSavedGame()
+        this.goHome()
+      }
+    })
+
     el('btn-menu-home').addEventListener('click', () => {
       el<HTMLDialogElement>('dialog-menu').close()
       this.persist()
@@ -229,6 +305,11 @@ export class App {
     })
 
     el('btn-again').addEventListener('click', () => {
+      if (this.mode === 'online') {
+        this.online?.requestRematch()
+        this.setGameOverStatus('已送出「再來一局」邀請，等待對方同意…')
+        return
+      }
       el<HTMLDialogElement>('dialog-gameover').close()
       void this.startNewGame()
     })
@@ -246,6 +327,450 @@ export class App {
     el('btn-history-close').addEventListener('click', () => this.closeDrawer())
   }
 
+  // -------------------------------------------------------------- online UI
+
+  private wireOnlineUi(): void {
+    el('btn-home-online').addEventListener('click', () => {
+      this.lobbyControls.prefillName()
+      showScreen('screen-online-setup')
+    })
+    el('btn-wait-cancel').addEventListener('click', () => this.goHome())
+    el('btn-join-home').addEventListener('click', () => this.goHome())
+    el<HTMLFormElement>('online-join-form').addEventListener('submit', (event) => {
+      event.preventDefault()
+      const roomId = this.pendingJoinRoomId
+      if (!roomId) return
+      const name = el<HTMLInputElement>('input-join-name').value.trim() || '玩家二'
+      this.settings.playerNames[0] = name
+      saveSettings(this.settings)
+      this.pendingJoinRoomId = null
+      this.openOnlineSession(roomId, name)
+    })
+
+    el('btn-menu-copylink').addEventListener('click', async () => {
+      const url = this.online?.inviteUrl
+      if (!url) return
+      try {
+        await navigator.clipboard.writeText(url)
+        this.hud.showHint('已複製邀請連結')
+      } catch {
+        this.hud.showHint(url)
+      }
+      el<HTMLDialogElement>('dialog-menu').close()
+    })
+
+    el('btn-menu-offer-draw').addEventListener('click', () => {
+      el<HTMLDialogElement>('dialog-menu').close()
+      if (!this.isSeatedPlayer()) return
+      if (this.online && this.controller?.state.status === 'playing') {
+        this.online.offerDraw()
+        this.hud.showHint('已向對手提出和棋，等待回應')
+        this.chat.addNotice('你提出了和棋')
+      }
+    })
+
+    el('btn-menu-resign').addEventListener('click', async () => {
+      el<HTMLDialogElement>('dialog-menu').close()
+      if (!this.isSeatedPlayer()) return
+      if (!this.online || this.controller?.state.status !== 'playing') return
+      const sure = await confirmDialog('認輸', '確定要認輸嗎？對手將獲得本局勝利。')
+      if (sure) this.online.resign()
+    })
+
+    el('btn-menu-abort').addEventListener('click', async () => {
+      el<HTMLDialogElement>('dialog-menu').close()
+      if (!this.isSeatedPlayer()) return
+      if (!this.online || this.controller?.state.status !== 'playing') return
+      const opponentOnline = this.isOpponentConnected()
+      const sure = await confirmDialog(
+        '結束對戰',
+        opponentOnline
+          ? '將徵詢對方同意後結束本局（不計勝負）。確定要提出嗎？'
+          : '對手目前離線，對戰將直接結束（不計勝負）。確定嗎？',
+      )
+      if (!sure) return
+      this.online.requestAbort()
+      if (opponentOnline) {
+        this.hud.showHint('已徵詢對方是否同意結束對戰')
+        this.chat.addNotice('你提出了結束對戰')
+      }
+    })
+
+    el('btn-menu-leave').addEventListener('click', async () => {
+      el<HTMLDialogElement>('dialog-menu').close()
+      const sure = await confirmDialog('離開房間', '離開後隨時可用同一個網址回到對局。確定離開嗎？')
+      if (sure) this.goHome()
+    })
+  }
+
+  /** The online button appears only when a game server answers (not on the static GitHub Pages build). */
+  private detectOnlineAvailability(): void {
+    void fetch('/api/health', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('unavailable'))))
+      .then(() => {
+        this.onlineAvailable = true
+        el('btn-home-online').hidden = false
+        if (this.phase === 'HOME') void this.refreshLiveGames()
+      })
+      .catch(() => {
+        this.onlineAvailable = false
+        el('btn-home-online').hidden = true
+      })
+  }
+
+  /** Home-screen live-games board: fetch and render current matches. */
+  private async refreshLiveGames(): Promise<void> {
+    try {
+      const res = await fetch('/api/games', { cache: 'no-store' })
+      if (!res.ok) return
+      const data = (await res.json()) as { games: GameSummary[] }
+      this.renderLiveGames(data.games)
+    } catch {
+      // Offline or server hiccup — keep whatever is shown.
+    }
+  }
+
+  private renderLiveGames(games: GameSummary[]): void {
+    const block = el('live-games')
+    const list = el<HTMLUListElement>('live-games-list')
+    if (games.length === 0) {
+      block.hidden = true
+      list.textContent = ''
+      return
+    }
+    block.hidden = false
+    list.textContent = ''
+    for (const game of games) {
+      const item = document.createElement('li')
+      item.className = 'live-game'
+
+      const info = document.createElement('div')
+      info.className = 'live-game-info'
+
+      const names = document.createElement('div')
+      names.className = 'live-game-names'
+      const nameOf = (p: { name: string; color: Color | null }) =>
+        p.color ? `${p.name}（${p.color === 'red' ? '紅' : '黑'}）` : p.name
+      const p0 = document.createElement('span')
+      p0.textContent = nameOf(game.players[0])
+      const vs = document.createElement('span')
+      vs.className = 'vs'
+      vs.textContent = '對'
+      const p1 = document.createElement('span')
+      p1.textContent = nameOf(game.players[1])
+      names.append(p0, vs, p1)
+
+      const remainingRed = 16 - game.capturedRed
+      const remainingBlack = 16 - game.capturedBlack
+      const score = document.createElement('div')
+      score.className = 'live-game-score'
+      score.textContent = `紅 剩${remainingRed}：黑 剩${remainingBlack} · 第 ${game.turnNumber} 手`
+      if (game.spectators > 0) score.textContent += ` · ${game.spectators} 人觀戰`
+      if (game.turnNumber >= 10 && Math.abs(remainingRed - remainingBlack) <= 1) {
+        const hot = document.createElement('span')
+        hot.className = 'hot'
+        hot.textContent = ' 🔥戰況膠著'
+        score.append(hot)
+      }
+
+      info.append(names, score)
+
+      const watch = document.createElement('button')
+      watch.type = 'button'
+      watch.className = 'btn btn-ghost btn-small btn-watch'
+      watch.textContent = '觀戰'
+      watch.setAttribute('aria-label', `觀戰 ${game.players[0].name} 對 ${game.players[1].name}`)
+      watch.addEventListener('click', () => {
+        history.replaceState(null, '', `/r/${game.roomId}`)
+        this.joinOnlineRoom(game.roomId)
+      })
+
+      item.append(info, watch)
+      list.append(item)
+    }
+  }
+
+  private async createOnlineRoom(name: string): Promise<void> {
+    this.lobbyControls.setCreating(true)
+    // Remember the nickname so the next online game (and rejoin) reuses it.
+    this.settings.playerNames[0] = name
+    saveSettings(this.settings)
+    try {
+      const res = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = (await res.json()) as { roomId: string; playerToken: string }
+      saveRoomToken(data.roomId, data.playerToken)
+      history.replaceState(null, '', `/r/${data.roomId}`)
+      this.openOnlineSession(data.roomId, name)
+    } catch (error) {
+      console.warn('建立房間失敗', error)
+      this.hud.showHint('建立房間失敗，請稍後再試')
+      showError('建立房間失敗', '無法連線到對戰伺服器，請稍後再試。')
+    } finally {
+      this.lobbyControls.setCreating(false)
+    }
+  }
+
+  /** Entry from an invite URL. Returning players (with a seat token) rejoin
+   * silently; a first-time guest picks their nickname before connecting. */
+  private joinOnlineRoom(roomId: string): void {
+    if (loadRoomToken(roomId)) {
+      this.openOnlineSession(roomId, this.settings.playerNames[0])
+      return
+    }
+    this.pendingJoinRoomId = roomId
+    this.setMode('online')
+    el<HTMLInputElement>('input-join-name').value = this.settings.playerNames[0]
+    showScreen('screen-online-join')
+  }
+
+  private openOnlineSession(roomId: string, myName: string): void {
+    this.online?.dispose()
+    this.myOnlineName = myName
+    this.setMode('online')
+    el('invite-url').textContent = '連線中…'
+    el<HTMLCanvasElement>('invite-qr').hidden = true
+    showScreen('screen-online-wait')
+
+    this.online = new OnlineSession(roomId, myName, {
+      onWaiting: (inviteUrl) => {
+        showScreen('screen-online-wait')
+        showInvite(inviteUrl)
+      },
+      onGameReady: (state, hidden, { resumed }) => this.beginOnlineGame(state, hidden, { intro: !resumed }),
+      onServerAction: (action, state, hidden, reveal) => {
+        const controller = this.controller
+        if (!controller || this.phase === 'HOME') return
+        controller.hiddenPieceIds = hidden
+        controller.applyServerAction(action, state, reveal)
+      },
+      onActionRejected: (message) => this.controller?.rejectPendingAction(message),
+      onGameOverNow: (state, hidden, info) => {
+        const controller = this.ensureController()
+        controller.hiddenPieceIds = hidden
+        controller.state = state
+        this.hud.update(state)
+        this.phase = 'GAME_OVER'
+        this.pauseClock()
+        this.showOnlineGameOver(state, info)
+      },
+      onCountdown: (remainingMs) => {
+        if (this.mode === 'online') this.hud.setMoveCountdown(remainingMs)
+      },
+      onChat: (msg) => this.chat.addMessage(msg),
+      onChatHistory: (msgs) => this.chat.setHistory(msgs),
+      onPresence: (presence) => this.handlePresence(presence),
+      onDrawOffered: () => void this.handleDrawOffered(),
+      onDrawRejected: () => this.hud.showHint('對手婉拒了和棋'),
+      onAbortOffered: () => void this.handleAbortOffered(),
+      onAbortRejected: () => {
+        this.hud.showHint('對方不同意結束對戰，繼續加油！')
+        this.chat.addNotice('對方不同意結束對戰')
+      },
+      onRematchOffered: () => void this.handleRematchOffered(),
+      onRematchRejected: () => this.setGameOverStatus('對方婉拒了再來一局'),
+      onRematchStart: (state, hidden) => {
+        el<HTMLDialogElement>('dialog-gameover').close()
+        this.chat.addNotice('新的一局開始！')
+        this.beginOnlineGame(state, hidden, { intro: true })
+      },
+      onConnectionChanged: (connected) => this.setConnectionOverlay(!connected),
+      onError: (code, message) => this.handleOnlineError(code, message),
+      onYourTurnWhileHidden: () => this.notifyYourTurn(),
+    })
+    this.online.connect()
+  }
+
+  private beginOnlineGame(state: GameState, hidden: Set<string>, options: { intro: boolean }): void {
+    const controller = this.ensureController()
+    const seat = this.online?.seat
+    controller.localPlayerIndex = seat === 0 || seat === 1 ? seat : null
+    controller.inputEnabled = seat === 0 || seat === 1
+    controller.hiddenPieceIds = hidden
+    this.elapsedBaseMs = 0
+    this.beginSession(state, options)
+    this.chat.setSelf(seat === 0 || seat === 1 ? seat : null, this.myOnlineName)
+    if (options.intro) {
+      const mySeatName = seat === 0 || seat === 1 ? state.players[seat].name : null
+      this.hud.showHint(mySeatName ? `${mySeatName}，對局開始！第一手翻出的顏色就是你的陣營` : '對局開始（觀戰中）')
+    } else {
+      this.hud.showHint('已重新連上對局')
+    }
+  }
+
+  private handlePresence(presence: PresenceInfo): void {
+    const previous = this.lastPresence
+    this.lastPresence = presence
+    const status = el('opponent-status')
+    const mySeat = this.online?.seat
+    if (mySeat !== 0 && mySeat !== 1) {
+      status.hidden = true
+      return
+    }
+    const opponent = presence.seats[mySeat === 0 ? 1 : 0]
+    const opponentWasConnected = previous?.seats[mySeat === 0 ? 1 : 0]?.connected
+
+    if (!opponent.connected && opponent.name !== '等待中') {
+      status.hidden = false
+      status.textContent = '對手已斷線'
+      if (opponentWasConnected) this.chat.addNotice(`${opponent.name} 已斷線，等待重連…`)
+    } else {
+      status.hidden = true
+      if (previous && opponentWasConnected === false && opponent.connected) {
+        this.chat.addNotice(`${opponent.name} 已重新連線`)
+      }
+    }
+  }
+
+  private async handleDrawOffered(): Promise<void> {
+    this.chat.addNotice('對手提出和棋')
+    const accept = await confirmDialog('對手提出和棋', '接受以和局結束本局嗎？')
+    this.online?.respondDraw(accept)
+  }
+
+  private async handleAbortOffered(): Promise<void> {
+    this.chat.addNotice('對手想結束對戰')
+    const accept = await confirmDialog('對手想結束對戰', '同意提前結束本局嗎？（不計勝負）')
+    this.online?.respondAbort(accept)
+  }
+
+  /** Spectators can chat but never influence the game. */
+  private isSeatedPlayer(): boolean {
+    const seat = this.online?.seat
+    if (seat === 0 || seat === 1) return true
+    this.hud.showHint('觀戰模式無法進行此操作')
+    return false
+  }
+
+  /** Live view of the opponent's connection, from the latest presence. */
+  private isOpponentConnected(): boolean {
+    const mySeat = this.online?.seat
+    if (mySeat !== 0 && mySeat !== 1 || !this.lastPresence) return true
+    return this.lastPresence.seats[mySeat === 0 ? 1 : 0].connected
+  }
+
+  private async handleRematchOffered(): Promise<void> {
+    this.setGameOverStatus('對方想再來一局！')
+    const accept = await confirmDialog('再來一局', '對手邀請你再來一局（換對方先手）。接受嗎？')
+    this.online?.respondRematch(accept)
+    if (!accept) this.setGameOverStatus('')
+  }
+
+  private showOnlineGameOver(state: GameState, infoOverride?: GameOverInfo): void {
+    const info = infoOverride ?? this.online?.gameOverInfo ?? null
+    showGameOverDialog(state, this.currentElapsedMs())
+    if (info) {
+      el('gameover-subtitle').textContent = GAME_OVER_REASON_TEXT[info.reason]
+      if (info.winnerIndex !== null) {
+        el('gameover-title').textContent = `${state.players[info.winnerIndex].name} 獲勝`
+      } else if (info.reason === 'aborted') {
+        el('gameover-title').textContent = '對戰結束'
+      }
+    }
+    this.setGameOverStatus('')
+    const isSeated = this.online?.seat === 0 || this.online?.seat === 1
+    el<HTMLButtonElement>('btn-again').hidden = !isSeated
+  }
+
+  private setGameOverStatus(text: string): void {
+    const status = el('gameover-online-status')
+    status.textContent = text
+    status.hidden = !text
+  }
+
+  private showOnlineFairness(): void {
+    const session = this.online
+    if (!session) return
+    const reveal = session.gameOverInfo?.fairnessReveal ?? null
+    const data: FairnessData = {
+      layout: reveal?.layout ?? [],
+      nonce: reveal?.nonce ?? '',
+      commitmentHash: session.fairnessHash,
+    }
+    const pieces: Record<string, Piece> = {}
+    if (reveal) {
+      for (const identity of reveal.layout) {
+        const dash = identity.indexOf('-')
+        const color = identity.slice(0, dash) as Color
+        const type = identity.slice(dash + 1) as PieceType
+        pieces[identity] = { id: identity, color, type, faceUp: true, captured: false }
+      }
+    }
+    showFairnessDialog(data, reveal !== null, pieces)
+  }
+
+  private handleOnlineError(code: string, message: string): void {
+    if (code === 'room-not-found') {
+      this.online?.dispose()
+      this.online = null
+      history.replaceState(null, '', '/')
+      showError('找不到對局', `${message}。房間可能已結束或連結有誤，請建立新的對戰邀請。`)
+      return
+    }
+    if (code === 'connected-elsewhere') {
+      this.online?.dispose()
+      el('online-overlay-text').textContent = '你已在其他視窗加入這場對局，此分頁已停用。'
+      el('online-overlay').hidden = false
+      return
+    }
+    if (code === 'rate-limited') {
+      this.chat.addNotice(message)
+      return
+    }
+    this.hud.showHint(message)
+  }
+
+  private setConnectionOverlay(disconnected: boolean): void {
+    if (this.mode !== 'online') return
+    // Never cover the waiting/lobby screens — only an active game.
+    const gameVisible = !el('screen-game').hidden
+    el('online-overlay-text').textContent = '連線中斷，重新連線中…'
+    el('online-overlay').hidden = !disconnected || !gameVisible || !this.online?.hasConnectedOnce
+  }
+
+  private notifyYourTurn(): void {
+    this.sounds.play('flip')
+    if (this.titleFlashTimer) return
+    let on = false
+    this.titleFlashTimer = window.setInterval(() => {
+      on = !on
+      document.title = on ? '🔔 輪到你了！' : this.originalTitle
+    }, 1000)
+  }
+
+  private stopTitleFlash(): void {
+    if (this.titleFlashTimer) {
+      window.clearInterval(this.titleFlashTimer)
+      this.titleFlashTimer = 0
+      document.title = this.originalTitle
+    }
+  }
+
+  private setMode(mode: GameMode): void {
+    this.mode = mode
+    document.body.classList.toggle('mode-online', mode === 'online')
+  }
+
+  private leaveOnlineMode(): void {
+    if (this.online) {
+      this.online.dispose()
+      this.online = null
+    }
+    this.stopTitleFlash()
+    this.lastPresence = null
+    this.chat?.reset()
+    el('online-overlay').hidden = true
+    this.hud.setMoveCountdown(null)
+    if (location.pathname.startsWith('/r/')) history.replaceState(null, '', '/')
+    this.setMode('hotseat')
+  }
+
+  // ------------------------------------------------------------- plumbing
+
   private closeDrawer(): void {
     el('history-drawer').hidden = true
     el('btn-history').setAttribute('aria-expanded', 'false')
@@ -254,8 +779,6 @@ export class App {
   private updateSoundLabel(): void {
     el('btn-menu-sound').textContent = `音效：${this.sounds.enabled ? '開' : '關'}`
   }
-
-  // ------------------------------------------------------------- plumbing
 
   private currentElapsedMs(): number {
     const active = this.playingSince !== null ? performance.now() - this.playingSince : 0
@@ -270,14 +793,18 @@ export class App {
   private handleVisibilityChange(): void {
     if (document.hidden) {
       this.persist()
-      this.pauseClock()
-    } else if (this.phase === 'PLAYING') {
-      this.playingSince = performance.now()
-      this.lastFrame = performance.now()
+      if (this.mode === 'hotseat') this.pauseClock()
+    } else {
+      this.stopTitleFlash()
+      if (this.phase === 'PLAYING') {
+        if (this.mode === 'hotseat' && this.playingSince === null) this.playingSince = performance.now()
+        this.lastFrame = performance.now()
+      }
     }
   }
 
   private persist(): void {
+    if (this.mode !== 'hotseat') return
     const state = this.controller?.state
     if (state && this.fairness && state.status === 'playing') {
       saveGame(state, this.fairness, this.currentElapsedMs())

@@ -9,4 +9,10 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['@dimforge/rapier3d'],
   },
+  server: {
+    proxy: {
+      '/api': 'http://localhost:8787',
+      '/ws': { target: 'ws://localhost:8787', ws: true },
+    },
+  },
 })
