@@ -42,14 +42,12 @@ export class Hud {
       this.lastPlayerIndex = state.currentPlayerIndex
     } else if (state.status === 'won' && state.winnerIndex !== null) {
       const winner = state.players[state.winnerIndex]
-      const reason = this.currentGameOverReason ? `（${this.currentGameOverReason}）` : ''
-      this.turnText.textContent = `${winner.name} 獲勝 ${reason}`.trim()
+      this.turnText.textContent = `${winner.name} 獲勝`
       if (winner.color) {
         this.turnChip.className = `color-chip ${winner.color}`
       }
     } else if (state.status === 'draw') {
-      const reason = this.currentGameOverReason ? `（${this.currentGameOverReason}）` : ''
-      this.turnText.textContent = `和局 ${reason}`.trim()
+      this.turnText.textContent = '和局'
       this.turnChip.className = 'color-chip'
     }
 
