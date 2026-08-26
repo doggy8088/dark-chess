@@ -28,10 +28,12 @@ setInterval(() => rooms.sweep(), 60_000).unref()
 const app = express()
 app.use(express.json({ limit: '4kb' }))
 
+const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev'
+
 app.get('/healthz', (_req, res) => res.status(200).send('ok'))
 // Same health check under /api so the Vite dev proxy (and the client's
 // online-mode feature detection) reach it with one proxy rule.
-app.get('/api/health', (_req, res) => res.status(200).json({ ok: true }))
+app.get('/api/health', (_req, res) => res.status(200).json({ ok: true, version: APP_VERSION }))
 
 // Live-games board for the home screen (public info only).
 app.get('/api/games', async (_req, res) => {

@@ -1,7 +1,7 @@
 {
   "name": "taiwan-dark-chess",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "license": "MIT",
   "author": "Will 保哥 (https://www.facebook.com/will.fans/)",
@@ -9,7 +9,7 @@
     "dev": "vite",
     "dev:server": "FIRESTORE_ENABLED=0 tsx watch server/index.ts",
     "build": "tsc && vite build",
-    "build:server": "esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist-server/index.mjs",
+    "build:server": "esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --define:__APP_VERSION__=\"'$npm_package_version'\" --outfile=dist-server/index.mjs",
     "preview": "vite preview",
     "start": "node dist-server/index.mjs",
     "test": "vitest run",

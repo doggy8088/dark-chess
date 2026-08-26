@@ -10,7 +10,7 @@ GCP_PROJECT := vertex-ai-sprint
 GCP_REGION  := asia-east1
 RUN_SERVICE := dark-chess
 
-.PHONY: help install dev dev-server test watch typecheck build preview clean deploy status open start-local deploy-run logs-run open-run
+.PHONY: help install dev dev-server test watch typecheck build preview clean deploy status open start-local deploy-run logs-run open-run bump
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -46,7 +46,7 @@ preview: build ## Serve the production build locally
 clean: ## Remove build output and node_modules
 	rm -rf dist dist-server node_modules
 
-deploy-run: ## Deploy the online-multiplayer service to Cloud Run
+deploy-run: bump ## Deploy the online-multiplayer service to Cloud Run; auto-bumps version
 	gcloud run deploy $(RUN_SERVICE) --source . \
 	  --project $(GCP_PROJECT) --region $(GCP_REGION) \
 	  --allow-unauthenticated --session-affinity \
@@ -59,7 +59,13 @@ logs-run: ## Tail Cloud Run service logs
 open-run: ## Open the Cloud Run deployment in the browser
 	open $$(gcloud run services describe $(RUN_SERVICE) --region $(GCP_REGION) --project $(GCP_PROJECT) --format 'value(status.url)')
 
-deploy: test build ## Push main to GitHub (triggers Pages deployment)
+bump: ## 更版：patch 版號 +1 並自動 commit（版號會顯示在網頁與 /api/health）
+	npm version patch --no-git-tag-version
+	git add package.json package-lock.json
+	git commit -m "chore: 更版 v$$(node -p "require('./package.json').version")"
+	@echo "版號已更新並 commit：v$$(node -p "require('./package.json').version")"
+
+deploy: test build bump ## Push main to GitHub (triggers Pages deployment); auto-bumps version
 	git push origin main
 	gh run watch --repo $(REPO) --exit-status $$(gh run list --repo $(REPO) --limit 1 --json databaseId -q '.[0].databaseId')
 

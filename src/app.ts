@@ -64,6 +64,10 @@ export class App {
     const loadingBar = el('loading-bar-fill')
     const loadingText = el('loading-text')
 
+    const versionLabel = `v${__APP_VERSION__}`
+    el('app-version').textContent = versionLabel
+    el('app-version-game').textContent = versionLabel
+
     if (!isWebGLAvailable()) {
       showError('無法啟動 3D 畫面', '你的瀏覽器不支援 WebGL。請改用支援 WebGL 的現代瀏覽器（Chrome、Safari、Edge、Firefox）。')
       return
