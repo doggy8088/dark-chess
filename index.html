@@ -206,8 +206,8 @@
         聊天<span id="chat-unread" class="chat-badge" hidden></span>
       </button>
       <div id="chat-drawer" class="online-only" hidden>
-        <div class="drawer-head">
-          <h3>聊天室</h3>
+        <div class="drawer-head" id="chat-drag-handle" title="按住拖曳移動聊天室">
+          <h3>聊天室 <span class="chat-drag-hint" aria-hidden="true">（可拖曳・Esc 關閉）</span></h3>
           <button id="btn-chat-close" class="icon-btn" type="button" aria-label="關閉聊天室">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           </button>
@@ -361,6 +361,7 @@
       <p id="gameover-online-status" class="gameover-online-status online-only" aria-live="polite" hidden></p>
       <div class="dialog-actions dialog-actions-column">
         <button id="btn-again" class="btn btn-primary" type="button" aria-label="再來一局">再來一局</button>
+        <button id="btn-gameover-stay" class="btn btn-ghost online-only" type="button" aria-label="留下來聊天">留下來聊天</button>
         <button id="btn-gameover-fairness" class="btn btn-ghost" type="button" aria-label="驗證本局公平性">驗證本局公平性</button>
         <button id="btn-gameover-home" class="btn btn-ghost" type="button" aria-label="回主選單">回主選單</button>
       </div>

@@ -318,6 +318,10 @@ export class App {
       el<HTMLDialogElement>('dialog-gameover').close()
       void this.startNewGame()
     })
+    el('btn-gameover-stay').addEventListener('click', () => {
+      el<HTMLDialogElement>('dialog-gameover').close()
+      this.chat.show()
+    })
     el('btn-gameover-home').addEventListener('click', () => {
       el<HTMLDialogElement>('dialog-gameover').close()
       this.goHome()
@@ -692,6 +696,8 @@ export class App {
     this.setGameOverStatus('')
     const isSeated = this.online?.seat === 0 || this.online?.seat === 1
     el<HTMLButtonElement>('btn-again').hidden = !isSeated
+    // Nobody gets kicked at game over — the room and its chat stay open.
+    this.chat.addNotice('對局結束，歡迎留在聊天室繼續聊聊剛剛的戰局！')
   }
 
   private setGameOverStatus(text: string): void {

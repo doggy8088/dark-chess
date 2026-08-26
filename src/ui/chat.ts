@@ -26,6 +26,14 @@ export class ChatPanel {
   constructor(private readonly callbacks: ChatPanelCallbacks) {
     this.toggleButton.addEventListener('click', () => this.toggle())
     el('btn-chat-close').addEventListener('click', () => this.hide())
+    this.wireDrag()
+
+    // Escape closes the chat — unless a modal dialog is up (Escape is its job).
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !this.drawer.hidden && !document.querySelector('dialog[open]')) {
+        this.hide()
+      }
+    })
 
     const form = el<HTMLFormElement>('chat-form')
     form.addEventListener('submit', (event) => {
@@ -128,5 +136,51 @@ export class ChatPanel {
     this.unread = 0
     this.badge.hidden = true
     this.hide()
+    // Back to the CSS-anchored position for the next room.
+    for (const prop of ['left', 'top', 'right', 'bottom', 'width'] as const) {
+      this.drawer.style.removeProperty(prop)
+    }
+  }
+
+  /** Drag the drawer anywhere by its header. First drag detaches it from its
+   * CSS anchors (bottom sheet / side panel) into free left/top positioning. */
+  private wireDrag(): void {
+    const handle = el('chat-drag-handle')
+    handle.style.cursor = 'grab'
+    handle.style.touchAction = 'none'
+    let dragging = false
+    let offsetX = 0
+    let offsetY = 0
+
+    handle.addEventListener('pointerdown', (event) => {
+      if ((event.target as HTMLElement).closest('button')) return
+      const rect = this.drawer.getBoundingClientRect()
+      this.drawer.style.width = `${rect.width}px`
+      this.drawer.style.left = `${rect.left}px`
+      this.drawer.style.top = `${rect.top}px`
+      this.drawer.style.right = 'auto'
+      this.drawer.style.bottom = 'auto'
+      offsetX = event.clientX - rect.left
+      offsetY = event.clientY - rect.top
+      dragging = true
+      handle.setPointerCapture(event.pointerId)
+      handle.style.cursor = 'grabbing'
+      event.preventDefault()
+    })
+    handle.addEventListener('pointermove', (event) => {
+      if (!dragging) return
+      const width = this.drawer.offsetWidth
+      // Keep at least a grabbable sliver inside the viewport.
+      const left = Math.min(Math.max(event.clientX - offsetX, 72 - width), window.innerWidth - 72)
+      const top = Math.min(Math.max(event.clientY - offsetY, 0), window.innerHeight - 48)
+      this.drawer.style.left = `${left}px`
+      this.drawer.style.top = `${top}px`
+    })
+    const stop = () => {
+      dragging = false
+      handle.style.cursor = 'grab'
+    }
+    handle.addEventListener('pointerup', stop)
+    handle.addEventListener('pointercancel', stop)
   }
 }

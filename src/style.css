@@ -835,6 +835,9 @@ body.mode-online #hud-bottom { padding-right: 84px; }
 }
 #chat-drawer[hidden] { display: none !important; }
 
+.chat-drag-hint { font-size: 11px; color: #7d6f5c; font-weight: 400; letter-spacing: .02em; }
+#chat-drag-handle { user-select: none; -webkit-user-select: none; }
+
 #chat-list {
   margin: 0; padding: 0;
   list-style: none;
