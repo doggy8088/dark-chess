@@ -16,6 +16,7 @@ import type {
   Seat,
   SeatOrSpectator,
   ServerMessage,
+  SpectatorPresence,
   TurnDeadline,
 } from '../src/shared/protocol'
 import {
@@ -601,7 +602,12 @@ export class Room {
             : undefined,
       }
     }
-    return { seats: [seatInfo(0), seatInfo(1)], spectators: this.spectators.size }
+    const spectatorList: SpectatorPresence[] = Array.from(this.spectators.values()).map((name) => ({ name }))
+    return {
+      seats: [seatInfo(0), seatInfo(1)],
+      spectators: this.spectators.size,
+      spectatorList,
+    }
   }
 
   private seatOf(socket: ClientSocket): SeatOrSpectator | null {

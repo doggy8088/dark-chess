@@ -181,6 +181,7 @@
           <button id="btn-side-rules" class="btn btn-ghost btn-small" type="button" aria-label="開啟遊戲規則">遊戲規則</button>
           <button id="btn-side-fairness" class="btn btn-ghost btn-small" type="button" aria-label="檢視公平性資訊">公平性</button>
           <button id="btn-side-restart" class="btn btn-ghost btn-small hotseat-only" type="button" aria-label="重新開始對局">重新開始</button>
+          <button id="btn-side-leave" class="btn btn-ghost btn-small" type="button" aria-label="離開遊戲">離開遊戲</button>
         </div>
       </aside>
 
@@ -202,22 +203,46 @@
       </div>
 
       <!-- ONLINE: chat toggle + drawer -->
-      <button id="btn-chat" class="btn btn-ghost btn-small online-only" type="button" aria-label="開啟聊天室" aria-expanded="false">
+      <button id="btn-chat" class="btn btn-ghost btn-small online-only" type="button" aria-label="開啟聊天與房間人員" aria-expanded="false">
         聊天<span id="chat-unread" class="chat-badge" hidden></span>
       </button>
       <div id="chat-drawer" class="online-only" hidden>
-        <div class="drawer-head" id="chat-drag-handle" title="按住拖曳移動聊天室">
-          <h3>聊天室 <span class="chat-drag-hint" aria-hidden="true">（可拖曳・Esc 關閉）</span></h3>
-          <button id="btn-chat-close" class="icon-btn" type="button" aria-label="關閉聊天室">
+        <div class="drawer-head" id="chat-drag-handle" title="按住拖曳移動視窗">
+          <div class="chat-tabs" role="tablist" aria-label="聊天室與人員名單">
+            <button id="tab-chat" class="chat-tab active" type="button" role="tab" aria-selected="true" aria-controls="tabpanel-chat">
+              聊天室<span id="chat-tab-unread" class="chat-badge" hidden></span>
+            </button>
+            <button id="tab-members" class="chat-tab" type="button" role="tab" aria-selected="false" aria-controls="tabpanel-members">
+              人員 <span id="members-count" class="members-count-tag">(0)</span>
+            </button>
+          </div>
+          <span class="chat-drag-hint" aria-hidden="true">（可拖曳・Esc 關閉）</span>
+          <button id="btn-chat-close" class="icon-btn" type="button" aria-label="關閉聊天與人員視窗">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
           </button>
         </div>
-        <ol id="chat-list" aria-label="聊天訊息" aria-live="polite"></ol>
-        <div id="chat-canned" aria-label="快速訊息"></div>
-        <form id="chat-form">
-          <input id="chat-input" type="text" maxlength="120" autocomplete="off" placeholder="輸入訊息…" aria-label="聊天輸入框" />
-          <button type="submit" class="btn btn-primary btn-small" aria-label="送出訊息">送出</button>
-        </form>
+
+        <div id="tabpanel-chat" class="tab-panel" role="tabpanel" aria-labelledby="tab-chat">
+          <ol id="chat-list" aria-label="聊天訊息" aria-live="polite"></ol>
+          <div id="chat-canned" aria-label="快速訊息"></div>
+          <form id="chat-form">
+            <input id="chat-input" type="text" maxlength="120" autocomplete="off" placeholder="輸入訊息…" aria-label="聊天輸入框" />
+            <button type="submit" class="btn btn-primary btn-small" aria-label="送出訊息">送出</button>
+          </form>
+        </div>
+
+        <div id="tabpanel-members" class="tab-panel" role="tabpanel" aria-labelledby="tab-members" hidden>
+          <div class="members-body">
+            <div class="members-section">
+              <h4 class="members-section-title">對戰玩家</h4>
+              <ul id="members-players-list" class="members-list" aria-label="對戰玩家名單"></ul>
+            </div>
+            <div class="members-section">
+              <h4 class="members-section-title">觀戰人員 <span id="spectators-count-sub"></span></h4>
+              <ul id="members-spectators-list" class="members-list" aria-label="觀戰人員名單"></ul>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- ONLINE: reconnect overlay -->
@@ -239,13 +264,11 @@
         <button id="btn-menu-fairness" class="btn btn-ghost" type="button" aria-label="檢視公平性資訊">公平性驗證</button>
         <button id="btn-menu-draw" class="btn btn-ghost hotseat-only" type="button" aria-label="雙方同意和棋">雙方同意和棋</button>
         <button id="btn-menu-restart" class="btn btn-ghost hotseat-only" type="button" aria-label="重新開始對局">重新開始</button>
-        <button id="btn-menu-endgame" class="btn btn-ghost hotseat-only" type="button" aria-label="結束對戰">結束對戰</button>
-        <button id="btn-menu-home" class="btn btn-ghost hotseat-only" type="button" aria-label="回到主選單">回主選單</button>
         <button id="btn-menu-copylink" class="btn btn-ghost online-only" type="button" aria-label="複製邀請連結">複製邀請連結</button>
         <button id="btn-menu-offer-draw" class="btn btn-ghost online-only" type="button" aria-label="向對手提出和棋">提出和棋</button>
         <button id="btn-menu-resign" class="btn btn-ghost online-only" type="button" aria-label="認輸">認輸</button>
         <button id="btn-menu-abort" class="btn btn-ghost online-only" type="button" aria-label="結束對戰">結束對戰</button>
-        <button id="btn-menu-leave" class="btn btn-ghost online-only" type="button" aria-label="離開房間">離開房間</button>
+        <button id="btn-menu-leave" class="btn btn-ghost" type="button" aria-label="離開遊戲">離開遊戲</button>
       </div>
       <div class="dialog-actions">
         <button class="btn btn-primary dialog-close" type="button" aria-label="關閉選單">關閉</button>

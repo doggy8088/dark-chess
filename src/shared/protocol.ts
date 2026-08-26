@@ -76,9 +76,14 @@ export interface SeatPresence {
   graceDeadlineAt?: number
 }
 
+export interface SpectatorPresence {
+  name: string
+}
+
 export interface PresenceInfo {
   seats: [SeatPresence, SeatPresence]
   spectators: number
+  spectatorList?: SpectatorPresence[]
 }
 
 export type RoomStatus = 'waiting' | 'playing' | 'finished'

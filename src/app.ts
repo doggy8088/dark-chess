@@ -294,20 +294,12 @@ export class App {
       })
     }
 
-    el('btn-menu-endgame').addEventListener('click', async () => {
-      el<HTMLDialogElement>('dialog-menu').close()
-      const sure = await confirmDialog('結束對戰', '目前棋局將被清除並回到主選單。確定要結束嗎？')
-      if (sure) {
-        clearSavedGame()
-        this.goHome()
-      }
-    })
-
-    el('btn-menu-home').addEventListener('click', () => {
-      el<HTMLDialogElement>('dialog-menu').close()
-      this.persist()
-      this.goHome()
-    })
+    for (const id of ['btn-menu-leave', 'btn-side-leave']) {
+      el(id).addEventListener('click', async () => {
+        el<HTMLDialogElement>('dialog-menu').close()
+        await this.confirmLeaveGame()
+      })
+    }
 
     el('btn-again').addEventListener('click', () => {
       if (this.mode === 'online') {
@@ -404,12 +396,25 @@ export class App {
         this.chat.addNotice('你提出了結束對戰')
       }
     })
+  }
 
-    el('btn-menu-leave').addEventListener('click', async () => {
-      el<HTMLDialogElement>('dialog-menu').close()
-      const sure = await confirmDialog('離開房間', '離開後隨時可用同一個網址回到對局。確定離開嗎？')
-      if (sure) this.goHome()
-    })
+  private async confirmLeaveGame(): Promise<void> {
+    const isOnline = Boolean(this.online)
+    const isPlaying = this.controller?.state.status === 'playing'
+    const isSeated = this.isSeatedPlayer()
+
+    let msg = '確定要離開目前對局並返回主選單嗎？'
+    if (isOnline && isPlaying && isSeated) {
+      msg = '離開後隨時可用同一個網址回到對局（若輪到你走棋，請注意限時）。確定要離開嗎？'
+    } else if (isOnline) {
+      msg = '確定要離開本房間並返回主選單嗎？'
+    }
+
+    const sure = await confirmDialog('離開遊戲', msg)
+    if (sure) {
+      if (!isOnline) this.persist()
+      this.goHome()
+    }
   }
 
   /** The online button appears only when a game server answers (not on the static GitHub Pages build). */
@@ -569,6 +574,7 @@ export class App {
         if (!controller || this.phase === 'HOME') return
         controller.hiddenPieceIds = hidden
         controller.applyServerAction(action, state, reveal)
+        this.chat.updateState(state)
       },
       onActionRejected: (message) => this.controller?.rejectPendingAction(message),
       onGameOverNow: (state, hidden, info) => {
@@ -576,6 +582,7 @@ export class App {
         controller.hiddenPieceIds = hidden
         controller.state = state
         this.hud.update(state)
+        this.chat.updateState(state)
         this.phase = 'GAME_OVER'
         this.pauseClock()
         this.showOnlineGameOver(state, info)
@@ -616,6 +623,7 @@ export class App {
     this.elapsedBaseMs = 0
     this.beginSession(state, options)
     this.chat.setSelf(seat === 0 || seat === 1 ? seat : null, this.myOnlineName)
+    this.chat.updateState(state)
     if (options.intro) {
       const mySeatName = seat === 0 || seat === 1 ? state.players[seat].name : null
       this.hud.showHint(mySeatName ? `${mySeatName}，對局開始！第一手翻出的顏色就是你的陣營` : '對局開始（觀戰中）')
@@ -627,6 +635,7 @@ export class App {
   private handlePresence(presence: PresenceInfo): void {
     const previous = this.lastPresence
     this.lastPresence = presence
+    this.chat.updatePresence(presence, this.controller?.state)
     const status = el('opponent-status')
     const mySeat = this.online?.seat
     if (mySeat !== 0 && mySeat !== 1) {

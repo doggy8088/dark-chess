@@ -198,6 +198,26 @@ describe('Room actions', () => {
     expect(heard.msg.from).toBe('spectator')
     expect(heard.msg.name).toBe('路人甲')
   })
+
+  it('broadcasts spectatorList in presence on join and disconnect', async () => {
+    const { room, a } = await seatedRoom()
+    const c = new FakeSocket()
+    room.join(c, undefined, '觀眾甲')
+    const presenceAfterJoin = a.ofType('presence').slice(-1)[0]!
+    expect(presenceAfterJoin.presence.spectators).toBe(1)
+    expect(presenceAfterJoin.presence.spectatorList).toEqual([{ name: '觀眾甲' }])
+
+    const d = new FakeSocket()
+    room.join(d, undefined, '觀眾乙')
+    const presenceAfterSecond = a.ofType('presence').slice(-1)[0]!
+    expect(presenceAfterSecond.presence.spectators).toBe(2)
+    expect(presenceAfterSecond.presence.spectatorList).toEqual([{ name: '觀眾甲' }, { name: '觀眾乙' }])
+
+    room.disconnect(c)
+    const presenceAfterLeave = a.ofType('presence').slice(-1)[0]!
+    expect(presenceAfterLeave.presence.spectators).toBe(1)
+    expect(presenceAfterLeave.presence.spectatorList).toEqual([{ name: '觀眾乙' }])
+  })
 })
 
 describe('live games board', () => {
