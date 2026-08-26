@@ -99,7 +99,24 @@ button { font: inherit; color: inherit; }
 .error-inner p { color: var(--ink-dim); margin: 0 0 22px; line-height: 1.6; }
 
 /* ============ Home ============ */
-.home-inner { text-align: center; max-width: 420px; width: 100%; }
+#screen-home {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+  align-items: flex-start;
+  padding-top: calc(24px + env(safe-area-inset-top));
+  padding-bottom: calc(32px + env(safe-area-inset-bottom));
+}
+
+.home-inner {
+  text-align: center;
+  max-width: 980px;
+  width: 100%;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
 
 .home-eyebrow {
   margin: 0 0 10px;
@@ -128,59 +145,423 @@ button { font: inherit; color: inherit; }
   text-transform: uppercase;
 }
 
-.home-actions { display: flex; flex-direction: column; gap: 12px; align-items: stretch; max-width: 280px; margin: 0 auto; }
+.home-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+  max-width: 280px;
+  width: 100%;
+  margin: 0 auto;
+}
 
-.home-footnote { margin-top: 40px; color: #7d6f5c; font-size: 12px; letter-spacing: .06em; }
+.home-footnote { margin-top: 36px; color: #7d6f5c; font-size: 12px; letter-spacing: .06em; }
 
-/* Live games board (home) */
-#live-games {
-  margin: 26px auto 0;
-  max-width: 420px;
+/* ============ War Room (戰情室) ============ */
+.war-room-panel {
+  margin: 32px auto 0;
+  width: 100%;
+  max-width: 960px;
   text-align: left;
-  background: rgba(20,13,10,.55);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 12px 14px;
+  background: linear-gradient(180deg, rgba(28, 20, 16, 0.85) 0%, rgba(18, 12, 10, 0.95) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(212, 166, 88, 0.28);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  border-radius: calc(var(--radius) + 4px);
+  padding: 18px 20px 22px;
+  position: relative;
+  overflow: hidden;
 }
-#live-games[hidden] { display: none; }
-.live-games-title {
-  margin: 0 0 8px;
-  font-size: 13px;
-  letter-spacing: .18em;
-  color: var(--accent);
-  font-weight: 600;
+
+.war-room-panel[hidden] { display: none; }
+
+.war-room-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), #e2bf7c, var(--accent), transparent);
+  opacity: 0.8;
 }
-#live-games-list {
-  margin: 0; padding: 0;
-  list-style: none;
-  max-height: 200px;
-  overflow-y: auto;
-  scrollbar-width: thin;
+
+/* War room header */
+.war-room-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(212, 166, 88, 0.15);
+  margin-bottom: 16px;
 }
-.live-game {
+
+.war-room-title-group {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 2px;
-  border-bottom: 1px solid rgba(255,255,255,.05);
 }
-.live-game:last-child { border-bottom: 0; }
-.live-game-info { flex: 1; min-width: 0; }
-.live-game-names {
-  font-size: 14px;
+
+.war-room-radar-pulse {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 10px #34d399;
+  animation: radar-blink 1.8s infinite ease-in-out;
+  flex-shrink: 0;
+}
+
+@keyframes radar-blink {
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 12px #34d399; }
+  50% { opacity: 0.4; transform: scale(0.85); box-shadow: 0 0 4px #34d399; }
+}
+
+.war-room-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+.war-room-badge {
+  font-size: 11px;
   font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(52, 211, 153, 0.15);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  color: #6ee7b7;
+  letter-spacing: 0.05em;
+}
+
+.war-room-badge.disconnected {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+/* Global War Stats Summary */
+.war-room-stats-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.war-stat-item {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.war-stat-num {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.war-stat-label {
+  font-size: 11px;
+  color: #a89988;
+  letter-spacing: 0.04em;
+}
+
+.war-stat-divider {
+  width: 1px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Grid layout for tactical cards */
+.war-room-grid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 14px;
+  max-height: 480px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding-right: 4px;
+}
+
+/* Tactical Battle Card */
+.war-card {
+  background: linear-gradient(165deg, rgba(38, 28, 22, 0.9) 0%, rgba(24, 16, 14, 0.95) 100%);
+  border: 1px solid rgba(212, 166, 88, 0.22);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  position: relative;
+}
+
+.war-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(212, 166, 88, 0.55);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 12px rgba(212, 166, 88, 0.15);
+}
+
+.war-card.war-card-updated {
+  animation: war-card-flash 0.85s ease-out;
+}
+
+@keyframes war-card-flash {
+  0% {
+    border-color: #f59e0b;
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.5), inset 0 0 12px rgba(245, 158, 11, 0.25);
+  }
+  100% {
+    border-color: rgba(212, 166, 88, 0.22);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* Card Header */
+.war-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.war-room-code {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  background: rgba(212, 166, 88, 0.12);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(212, 166, 88, 0.2);
+}
+
+.war-card-tags {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.war-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.war-tag-live {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+.war-tag-live .war-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: radar-blink 1.2s infinite ease-in-out;
+}
+
+.war-tag-tight {
+  background: rgba(245, 158, 11, 0.18);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+}
+
+.war-tag-fierce {
+  background: rgba(168, 85, 247, 0.18);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: #c084fc;
+}
+
+.war-tag-spec {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #d1c7b7;
+}
+
+/* Commanders Row */
+.war-commanders {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.war-cmd-box {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.war-cmd-box:last-child {
+  text-align: right;
+  align-items: flex-end;
+}
+
+.war-cmd-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f3ede2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.war-cmd-box.is-red .war-cmd-name { color: #f87171; }
+.war-cmd-box.is-black .war-cmd-name { color: #cbd5e1; }
+
+.war-cmd-forces {
+  font-size: 11px;
+  font-weight: 500;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+.war-cmd-box.is-red .war-cmd-forces { color: #fca5a5; }
+.war-cmd-box.is-black .war-cmd-forces { color: #94a3b8; }
+
+.war-vs-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+.war-vs-text {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  opacity: 0.8;
+}
+
+.war-turn-text {
+  font-size: 10px;
+  font-weight: 600;
+  color: #a39482;
+  white-space: nowrap;
+}
+
+/* Force Balance Gauge */
+.war-gauge-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.war-gauge-bar {
+  width: 100%;
+  height: 6px;
+  background: #1e1713;
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.war-gauge-red {
+  height: 100%;
+  background: linear-gradient(90deg, #991b1b, #ef4444);
+  transition: width 0.4s ease;
+}
+
+.war-gauge-black {
+  height: 100%;
+  background: linear-gradient(90deg, #475569, #1e293b);
+  transition: width 0.4s ease;
+}
+
+.war-gauge-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #8c7d6c;
+}
+
+.war-advantage {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* Card Footer */
+.war-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.war-card-stats {
+  font-size: 11px;
+  color: #948675;
+  font-variant-numeric: tabular-nums;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.live-game-names .vs { color: #7d6f5c; font-weight: 400; margin: 0 4px; }
-.live-game-score {
+
+.war-btn-watch {
   font-size: 12px;
-  color: var(--ink-dim);
-  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  padding: 6px 12px;
+  min-height: 32px;
+  color: var(--accent);
+  background: rgba(212, 166, 88, 0.12);
+  border-color: rgba(212, 166, 88, 0.35);
+  border-radius: 6px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
 }
-.live-game-score .hot { color: var(--warn); font-weight: 700; }
-.btn-watch { flex: none; }
+
+.war-btn-watch:hover {
+  background: rgba(212, 166, 88, 0.25);
+  border-color: var(--accent);
+  color: #fff;
+  transform: scale(1.03);
+}
+
+.war-btn-arrow {
+  font-size: 13px;
+  transition: transform 0.15s ease;
+}
+
+.war-btn-watch:hover .war-btn-arrow {
+  transform: translate(2px, -2px);
+}
 
 .home-copyright { margin-top: 8px; color: #7d6f5c; font-size: 12px; letter-spacing: .04em; }
 .home-copyright a {

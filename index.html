@@ -40,9 +40,31 @@
           <button id="btn-home-online" class="btn btn-primary" type="button" hidden aria-label="線上對戰">線上對戰</button>
           <button id="btn-home-rules" class="btn btn-ghost" type="button" aria-label="閱讀遊戲規則">遊戲規則</button>
         </div>
-        <div id="live-games" hidden>
-          <h3 class="live-games-title">進行中的對戰</h3>
-          <ul id="live-games-list" aria-label="進行中的對戰列表"></ul>
+        <div id="live-games" class="war-room-panel" hidden>
+          <div class="war-room-header">
+            <div class="war-room-title-group">
+              <span class="war-room-radar-pulse" aria-hidden="true"></span>
+              <h3 class="war-room-title">即時戰況 · 戰情中心</h3>
+              <span class="war-room-badge" id="war-room-live-badge">即時連線中</span>
+            </div>
+            <div class="war-room-stats-summary" id="war-room-stats">
+              <div class="war-stat-item">
+                <span class="war-stat-num" id="war-stat-games">0</span>
+                <span class="war-stat-label">進行戰局</span>
+              </div>
+              <div class="war-stat-divider" aria-hidden="true"></div>
+              <div class="war-stat-item">
+                <span class="war-stat-num" id="war-stat-players">0</span>
+                <span class="war-stat-label">在線棋手</span>
+              </div>
+              <div class="war-stat-divider" aria-hidden="true"></div>
+              <div class="war-stat-item">
+                <span class="war-stat-num" id="war-stat-spectators">0</span>
+                <span class="war-stat-label">即時觀戰</span>
+              </div>
+            </div>
+          </div>
+          <ul id="live-games-list" class="war-room-grid" aria-label="進行中的對戰列表"></ul>
         </div>
         <p class="home-footnote">Taiwan Dark Chess Rules v1 · 同機對戰 / 線上對戰 · <span id="app-version"></span></p>
         <p class="home-copyright">Copyright © 2026 <a href="https://www.facebook.com/will.fans/" target="_blank" rel="noopener noreferrer" aria-label="Will 保哥的 Facebook 粉絲專頁">Will 保哥</a></p>

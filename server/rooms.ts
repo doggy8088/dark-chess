@@ -9,9 +9,29 @@ export class RoomManager {
   private readonly rooms = new Map<string, Room>()
   private readonly loading = new Map<string, Promise<Room | null>>()
   private readonly deps: RoomDeps
+  private readonly listeners = new Set<() => void>()
 
   constructor(store: RoomStore, now: () => number = () => Date.now()) {
-    this.deps = { store, now }
+    this.deps = {
+      store,
+      now,
+      onActivity: () => this.notifyListeners(),
+    }
+  }
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  private notifyListeners(): void {
+    for (const listener of this.listeners) {
+      try {
+        listener()
+      } catch (err) {
+        console.error('RoomManager listener error', err)
+      }
+    }
   }
 
   async create(creatorName: string): Promise<Room> {
@@ -19,6 +39,7 @@ export class RoomManager {
     const room = await Room.create(roomId, creatorName, this.deps)
     this.rooms.set(roomId, room)
     await this.deps.store.save(room.toDoc())
+    this.notifyListeners()
     return room
   }
 
@@ -50,28 +71,43 @@ export class RoomManager {
   }
 
   /** Live-games board for the home screen: in-progress games, newest first. */
-  async listGames(limit = 20): Promise<GameSummary[]> {
+  async listGames(limit = 50): Promise<GameSummary[]> {
+    const map = new Map<string, GameSummary>()
+    for (const room of this.rooms.values()) {
+      room.evaluate()
+      if (room.status === 'playing' && room.seats[1]) {
+        const summary = summarizeDoc(room.toDoc())
+        if (summary) {
+          summary.spectators = room.spectatorCount
+          map.set(room.roomId, summary)
+        }
+      }
+    }
     const docs = await this.deps.store.listActive(limit)
-    const summaries: GameSummary[] = []
     for (const doc of docs) {
-      // Only games with both seats filled are worth watching.
+      if (map.has(doc.roomId)) continue
       if (!doc.seats[1]) continue
       const summary = summarizeDoc(doc)
       if (!summary) continue
       summary.spectators = this.rooms.get(doc.roomId)?.spectatorCount ?? 0
-      summaries.push(summary)
+      map.set(doc.roomId, summary)
     }
-    return summaries
+    const summaries = [...map.values()]
+    summaries.sort((a, b) => b.updatedAt - a.updatedAt)
+    return summaries.slice(0, limit)
   }
 
   /** Drops idle finished rooms from the cache (the store keeps them until TTL). */
   sweep(): void {
+    let changed = false
     for (const [roomId, room] of this.rooms) {
       if (room.status === 'finished' && !room.hasConnections) {
         room.dispose()
         this.rooms.delete(roomId)
+        changed = true
       }
     }
+    if (changed) this.notifyListeners()
   }
 }
 

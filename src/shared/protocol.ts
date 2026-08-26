@@ -98,6 +98,7 @@ export interface FairnessReveal {
 // ---------------------------------------------------------------- client → server
 
 export type ClientMessage =
+  | { t: 'subscribeLobby' }
   | { t: 'join'; roomId: string; playerToken?: string; name?: string; spectate?: boolean }
   | { t: 'action'; seq: number; action: Action }
   | { t: 'chat'; text: string }
@@ -116,6 +117,7 @@ export type Seat = 0 | 1
 export type SeatOrSpectator = Seat | 'spectator'
 
 export type ServerMessage =
+  | { t: 'lobby'; games: GameSummary[] }
   | {
       t: 'joined'
       roomId: string

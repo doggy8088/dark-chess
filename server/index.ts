@@ -78,6 +78,36 @@ server.on('upgrade', (request, socket, head) => {
   })
 })
 
+const lobbySockets = new Set<WebSocket>()
+let broadcastTimer: NodeJS.Timeout | null = null
+
+async function broadcastLobby(): Promise<void> {
+  if (lobbySockets.size === 0) return
+  try {
+    const games = await rooms.listGames(50)
+    const payload = JSON.stringify({ t: 'lobby', games })
+    for (const client of lobbySockets) {
+      if (client.readyState === 1 /* WebSocket.OPEN */) {
+        client.send(payload)
+      }
+    }
+  } catch (err) {
+    console.error('broadcastLobby failed', err)
+  }
+}
+
+function scheduleLobbyBroadcast(): void {
+  if (broadcastTimer) return
+  broadcastTimer = setTimeout(() => {
+    broadcastTimer = null
+    void broadcastLobby()
+  }, 50)
+}
+
+rooms.subscribe(() => {
+  scheduleLobbyBroadcast()
+})
+
 wss.on('connection', (ws: WebSocket) => {
   let room: Room | null = null
 
@@ -87,7 +117,24 @@ wss.on('connection', (ws: WebSocket) => {
       ws.send(JSON.stringify({ t: 'error', code: 'bad-message', message: '無法解析的訊息' }))
       return
     }
+    if (msg.t === 'subscribeLobby') {
+      room?.disconnect(ws)
+      room = null
+      lobbySockets.add(ws)
+      void (async () => {
+        try {
+          const games = await rooms.listGames(50)
+          if (ws.readyState === 1 /* WebSocket.OPEN */) {
+            ws.send(JSON.stringify({ t: 'lobby', games }))
+          }
+        } catch (err) {
+          console.error('initial lobby send failed', err)
+        }
+      })()
+      return
+    }
     if (msg.t === 'join') {
+      lobbySockets.delete(ws)
       void (async () => {
         if (!isRoomId(msg.roomId)) {
           ws.send(JSON.stringify({ t: 'error', code: 'room-not-found', message: '房間不存在或已過期' }))
@@ -108,6 +155,7 @@ wss.on('connection', (ws: WebSocket) => {
   })
 
   ws.on('close', () => {
+    lobbySockets.delete(ws)
     room?.disconnect(ws)
     room = null
   })

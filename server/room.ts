@@ -43,6 +43,7 @@ export interface ClientSocket {
 export interface RoomDeps {
   store: RoomStore
   now(): number
+  onActivity?: () => void
 }
 
 interface SeatState {
@@ -642,6 +643,7 @@ export class Room {
   /** Write-through, serialized per room so a slow write can't be overtaken. */
   private persist(): void {
     const doc = this.toDoc()
+    this.deps.onActivity?.()
     this.persistChain = this.persistChain
       .then(() => this.deps.store.save(doc))
       .catch((error: unknown) => {

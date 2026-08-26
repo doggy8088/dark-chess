@@ -7,15 +7,23 @@ import type { ClientMessage } from '../src/shared/protocol'
  */
 export function parseClientMessage(raw: unknown): ClientMessage | null {
   let data: unknown
-  try {
-    data = typeof raw === 'string' ? JSON.parse(raw) : JSON.parse(String(raw))
-  } catch {
+  if (typeof raw === 'string') {
+    try {
+      data = JSON.parse(raw)
+    } catch {
+      return null
+    }
+  } else if (typeof raw === 'object' && raw !== null) {
+    data = raw
+  } else {
     return null
   }
   if (typeof data !== 'object' || data === null) return null
   const msg = data as Record<string, unknown>
 
   switch (msg.t) {
+    case 'subscribeLobby':
+      return { t: 'subscribeLobby' }
     case 'join': {
       if (typeof msg.roomId !== 'string') return null
       const playerToken = typeof msg.playerToken === 'string' ? msg.playerToken.slice(0, 64) : undefined

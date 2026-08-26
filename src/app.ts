@@ -9,6 +9,7 @@ import { createSceneContext, isWebGLAvailable, type SceneContext } from './rende
 import { PhysicsWorld } from './physics/world'
 import { GameController, type ControllerCallbacks } from './controller'
 import { OnlineSession, type GameOverInfo } from './online/session'
+import { ReconnectingSocket } from './online/socket'
 import { loadRoomToken, saveRoomToken } from './online/tokens'
 import { SoundPlayer } from './audio/sounds'
 import { Hud } from './ui/hud'
@@ -52,6 +53,8 @@ export class App {
 
   // Online state
   private online: OnlineSession | null = null
+  private lobbySocket: ReconnectingSocket | null = null
+  private prevLiveGames = new Map<string, { turnNumber: number; capturedRed: number; capturedBlack: number }>()
   private pendingJoinRoomId: string | null = null
   private pendingJoinIntent: 'play' | 'watch' = 'play'
   private myOnlineName = ''
@@ -141,7 +144,10 @@ export class App {
     this.pauseClock()
     this.homeControls.setResumeAvailable(loadSavedGame() !== null)
     showScreen('screen-home')
-    if (this.onlineAvailable) void this.refreshLiveGames()
+    if (this.onlineAvailable) {
+      this.ensureLobbySocket()
+      void this.refreshLiveGames()
+    }
   }
 
   private ensureScene(): SceneContext {
@@ -202,6 +208,7 @@ export class App {
   }
 
   private beginSession(state: GameState, options: { intro: boolean }): void {
+    this.closeLobbySocket()
     showScreen('screen-game')
     const controller = this.ensureController()
     if (this.mode === 'hotseat') {
@@ -431,12 +438,48 @@ export class App {
       .then(() => {
         this.onlineAvailable = true
         el('btn-home-online').hidden = false
-        if (this.phase === 'HOME') void this.refreshLiveGames()
+        if (this.phase === 'HOME') {
+          this.ensureLobbySocket()
+          void this.refreshLiveGames()
+        }
       })
       .catch(() => {
         this.onlineAvailable = false
         el('btn-home-online').hidden = true
+        this.closeLobbySocket()
       })
+  }
+
+  private ensureLobbySocket(): void {
+    if (this.lobbySocket || !this.onlineAvailable) return
+    this.lobbySocket = new ReconnectingSocket({
+      onOpen: () => {
+        this.updateWarRoomBadge(true)
+        this.lobbySocket?.send({ t: 'subscribeLobby' })
+      },
+      onDisconnected: () => {
+        this.updateWarRoomBadge(false)
+      },
+      onMessage: (msg) => {
+        if (msg.t === 'lobby') {
+          this.renderLiveGames(msg.games)
+        }
+      },
+    })
+    this.lobbySocket.connect()
+  }
+
+  private closeLobbySocket(): void {
+    this.lobbySocket?.close()
+    this.lobbySocket = null
+  }
+
+  private updateWarRoomBadge(connected: boolean): void {
+    const badge = document.getElementById('war-room-live-badge')
+    if (badge) {
+      badge.textContent = connected ? '即時連線中' : '重新連線中…'
+      badge.classList.toggle('disconnected', !connected)
+    }
   }
 
   /** Home-screen live-games board: fetch and render current matches. */
@@ -454,60 +497,200 @@ export class App {
   private renderLiveGames(games: GameSummary[]): void {
     const block = el('live-games')
     const list = el<HTMLUListElement>('live-games-list')
+    const statGames = document.getElementById('war-stat-games')
+    const statPlayers = document.getElementById('war-stat-players')
+    const statSpectators = document.getElementById('war-stat-spectators')
+
     if (games.length === 0) {
       block.hidden = true
       list.textContent = ''
+      this.prevLiveGames.clear()
       return
     }
+
     block.hidden = false
+
+    // Update global war room stats
+    const totalSpectators = games.reduce((acc, g) => acc + g.spectators, 0)
+    const totalPlayers = games.length * 2
+    if (statGames) statGames.textContent = String(games.length)
+    if (statPlayers) statPlayers.textContent = String(totalPlayers)
+    if (statSpectators) statSpectators.textContent = String(totalSpectators)
+
     list.textContent = ''
+
     for (const game of games) {
-      const item = document.createElement('li')
-      item.className = 'live-game'
-
-      const info = document.createElement('div')
-      info.className = 'live-game-info'
-
-      const names = document.createElement('div')
-      names.className = 'live-game-names'
-      const nameOf = (p: { name: string; color: Color | null }) =>
-        p.color ? `${p.name}（${p.color === 'red' ? '紅' : '黑'}）` : p.name
-      const p0 = document.createElement('span')
-      p0.textContent = nameOf(game.players[0])
-      const vs = document.createElement('span')
-      vs.className = 'vs'
-      vs.textContent = '對'
-      const p1 = document.createElement('span')
-      p1.textContent = nameOf(game.players[1])
-      names.append(p0, vs, p1)
-
       const remainingRed = 16 - game.capturedRed
       const remainingBlack = 16 - game.capturedBlack
-      const score = document.createElement('div')
-      score.className = 'live-game-score'
-      score.textContent = `紅 剩${remainingRed}：黑 剩${remainingBlack} · 第 ${game.turnNumber} 手`
-      if (game.spectators > 0) score.textContent += ` · ${game.spectators} 人觀戰`
-      if (game.turnNumber >= 10 && Math.abs(remainingRed - remainingBlack) <= 1) {
-        const hot = document.createElement('span')
-        hot.className = 'hot'
-        hot.textContent = ' 🔥戰況膠著'
-        score.append(hot)
+      const totalCaptures = game.capturedRed + game.capturedBlack
+      const isTight = game.turnNumber >= 10 && Math.abs(remainingRed - remainingBlack) <= 1
+      const isFierce = totalCaptures >= 12
+
+      // Check if updated since last snapshot
+      const prev = this.prevLiveGames.get(game.roomId)
+      const hasUpdated =
+        prev !== undefined &&
+        (prev.turnNumber !== game.turnNumber ||
+          prev.capturedRed !== game.capturedRed ||
+          prev.capturedBlack !== game.capturedBlack)
+
+      const card = document.createElement('li')
+      card.className = 'war-card'
+      if (hasUpdated) {
+        card.classList.add('war-card-updated')
       }
 
-      info.append(names, score)
+      // Card Header
+      const header = document.createElement('div')
+      header.className = 'war-card-header'
+
+      const roomTag = document.createElement('span')
+      roomTag.className = 'war-room-code'
+      roomTag.textContent = `#${game.roomId.slice(-4).toUpperCase()}`
+
+      const tags = document.createElement('div')
+      tags.className = 'war-card-tags'
+
+      const liveTag = document.createElement('span')
+      liveTag.className = 'war-tag war-tag-live'
+      liveTag.innerHTML = '<span class="war-dot" aria-hidden="true"></span>交戰中'
+      tags.append(liveTag)
+
+      if (isTight) {
+        const tightTag = document.createElement('span')
+        tightTag.className = 'war-tag war-tag-tight'
+        tightTag.textContent = '🔥 膠著'
+        tags.append(tightTag)
+      } else if (isFierce) {
+        const fierceTag = document.createElement('span')
+        fierceTag.className = 'war-tag war-tag-fierce'
+        fierceTag.textContent = '⚔️ 激戰'
+        tags.append(fierceTag)
+      }
+
+      if (game.spectators > 0) {
+        const specTag = document.createElement('span')
+        specTag.className = 'war-tag war-tag-spec'
+        specTag.textContent = `👁️ ${game.spectators}`
+        tags.append(specTag)
+      }
+
+      header.append(roomTag, tags)
+
+      // Commanders Row
+      const commanders = document.createElement('div')
+      commanders.className = 'war-commanders'
+
+      const p0 = game.players[0]
+      const p1 = game.players[1]
+
+      // Left Commander (Player 0)
+      const cmdLeft = document.createElement('div')
+      cmdLeft.className = `war-cmd-box ${p0.color ? (p0.color === 'red' ? 'is-red' : 'is-black') : 'is-neutral'}`
+      const p0Name = document.createElement('div')
+      p0Name.className = 'war-cmd-name'
+      p0Name.textContent = p0.name
+      const p0Role = document.createElement('div')
+      p0Role.className = 'war-cmd-forces'
+      if (p0.color === 'red') {
+        p0Role.textContent = `紅方 · 剩 ${remainingRed} 兵`
+      } else if (p0.color === 'black') {
+        p0Role.textContent = `黑方 · 剩 ${remainingBlack} 兵`
+      } else {
+        p0Role.textContent = '陣營待定'
+      }
+      cmdLeft.append(p0Name, p0Role)
+
+      // Center VS & Turn
+      const centerVs = document.createElement('div')
+      centerVs.className = 'war-vs-badge'
+      const vsText = document.createElement('span')
+      vsText.className = 'war-vs-text'
+      vsText.textContent = 'VS'
+      const turnText = document.createElement('span')
+      turnText.className = 'war-turn-text'
+      turnText.textContent = `第 ${game.turnNumber} 手`
+      centerVs.append(vsText, turnText)
+
+      // Right Commander (Player 1)
+      const cmdRight = document.createElement('div')
+      cmdRight.className = `war-cmd-box ${p1.color ? (p1.color === 'red' ? 'is-red' : 'is-black') : 'is-neutral'}`
+      const p1Name = document.createElement('div')
+      p1Name.className = 'war-cmd-name'
+      p1Name.textContent = p1.name
+      const p1Role = document.createElement('div')
+      p1Role.className = 'war-cmd-forces'
+      if (p1.color === 'red') {
+        p1Role.textContent = `紅方 · 剩 ${remainingRed} 兵`
+      } else if (p1.color === 'black') {
+        p1Role.textContent = `黑方 · 剩 ${remainingBlack} 兵`
+      } else {
+        p1Role.textContent = '陣營待定'
+      }
+      cmdRight.append(p1Name, p1Role)
+
+      commanders.append(cmdLeft, centerVs, cmdRight)
+
+      // Force Balance Gauge
+      const gaugeWrap = document.createElement('div')
+      gaugeWrap.className = 'war-gauge-wrap'
+
+      const gaugeBar = document.createElement('div')
+      gaugeBar.className = 'war-gauge-bar'
+      const totalRemaining = remainingRed + remainingBlack || 1
+      const redPercent = Math.round((remainingRed / totalRemaining) * 100)
+      const redFill = document.createElement('div')
+      redFill.className = 'war-gauge-red'
+      redFill.style.width = `${redPercent}%`
+      const blackFill = document.createElement('div')
+      blackFill.className = 'war-gauge-black'
+      blackFill.style.width = `${100 - redPercent}%`
+      gaugeBar.append(redFill, blackFill)
+
+      const gaugeLabel = document.createElement('div')
+      gaugeLabel.className = 'war-gauge-label'
+      let advantageText = '雙方勢均力敵'
+      if (remainingRed > remainingBlack) {
+        advantageText = `紅方兵力領先 (+${remainingRed - remainingBlack})`
+      } else if (remainingBlack > remainingRed) {
+        advantageText = `黑方兵力領先 (+${remainingBlack - remainingRed})`
+      }
+      gaugeLabel.innerHTML = `<span>戰力天平</span><span class="war-advantage">${advantageText}</span>`
+
+      gaugeWrap.append(gaugeBar, gaugeLabel)
+
+      // Card Footer
+      const footer = document.createElement('div')
+      footer.className = 'war-card-footer'
+
+      const statsInfo = document.createElement('div')
+      statsInfo.className = 'war-card-stats'
+      statsInfo.textContent = `已吃 ${totalCaptures} 子 · 紅損 ${game.capturedRed} / 黑損 ${game.capturedBlack}`
 
       const watch = document.createElement('button')
       watch.type = 'button'
-      watch.className = 'btn btn-ghost btn-small btn-watch'
-      watch.textContent = '觀戰'
-      watch.setAttribute('aria-label', `觀戰 ${game.players[0].name} 對 ${game.players[1].name}`)
+      watch.className = 'btn btn-ghost btn-small war-btn-watch'
+      watch.innerHTML = '進入觀戰 <span class="war-btn-arrow" aria-hidden="true">↗</span>'
+      watch.setAttribute('aria-label', `進入觀戰 ${p0.name} 對 ${p1.name}`)
       watch.addEventListener('click', () => {
         history.replaceState(null, '', `/r/${game.roomId}`)
         this.joinOnlineRoom(game.roomId, 'watch')
       })
 
-      item.append(info, watch)
-      list.append(item)
+      footer.append(statsInfo, watch)
+
+      card.append(header, commanders, gaugeWrap, footer)
+      list.append(card)
+    }
+
+    // Save snapshot for delta animation on next tick
+    this.prevLiveGames.clear()
+    for (const g of games) {
+      this.prevLiveGames.set(g.roomId, {
+        turnNumber: g.turnNumber,
+        capturedRed: g.capturedRed,
+        capturedBlack: g.capturedBlack,
+      })
     }
   }
 
@@ -563,6 +746,7 @@ export class App {
   }
 
   private openOnlineSession(roomId: string, myName: string, spectate = false): void {
+    this.closeLobbySocket()
     this.online?.dispose()
     this.myOnlineName = myName
     this.setMode('online')

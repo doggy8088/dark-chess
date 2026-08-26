@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Room } from '../room'
 import { RoomManager } from '../rooms'
+import { parseClientMessage } from '../guards'
 import { computeCommitmentHash } from '../../src/game/fairness'
 import { buildState, at } from '../../src/tests/test-utils'
 import { FakeSocket, makeDeps } from './server-test-utils'
@@ -244,6 +245,33 @@ describe('live games board', () => {
     // No hidden identities anywhere in the payload.
     expect(JSON.stringify(games)).not.toMatch(/"(general|advisor|elephant|rook|horse|cannon|pawn)"/)
   })
+
+  it('notifies subscribers on room activity and updates in-memory live games', async () => {
+    const deps = makeDeps()
+    const manager = new RoomManager(deps.store, deps.now)
+    let updateCount = 0
+    const unsub = manager.subscribe(() => {
+      updateCount++
+    })
+
+    const room = await manager.create('房主甲')
+    expect(updateCount).toBeGreaterThan(0)
+
+    const prevCount = updateCount
+    const a = new FakeSocket()
+    const b = new FakeSocket()
+    room.join(a, room.seats[0].token, undefined)
+    room.join(b, undefined, '玩家乙')
+
+    expect(updateCount).toBeGreaterThan(prevCount)
+    const games = await manager.listGames()
+    expect(games.some((g) => g.roomId === room.roomId)).toBe(true)
+
+    unsub()
+    const currentCount = updateCount
+    room.disconnect(a)
+    expect(updateCount).toBe(currentCount)
+  })
 })
 
 describe('Room persistence round-trip', () => {
@@ -259,5 +287,23 @@ describe('Room persistence round-trip', () => {
     expect(revived.state.pieces.c03?.faceUp).toBe(room.state.pieces.c03?.faceUp)
     expect(revived.fairness.hash).toBe(room.fairness.hash)
     expect(revived.seats[1]?.name).toBe('乙')
+  })
+})
+
+describe('parseClientMessage', () => {
+  it('parses subscribeLobby message', () => {
+    const parsed = parseClientMessage({ t: 'subscribeLobby' })
+    expect(parsed).toEqual({ t: 'subscribeLobby' })
+  })
+
+  it('parses join and reject invalid messages', () => {
+    expect(parseClientMessage({ t: 'join', roomId: 'abcdef1234' })).toEqual({
+      t: 'join',
+      roomId: 'abcdef1234',
+      name: undefined,
+      playerToken: undefined,
+      spectate: false,
+    })
+    expect(parseClientMessage('invalid json {')).toBeNull()
   })
 })
