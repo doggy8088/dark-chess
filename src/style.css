@@ -1529,21 +1529,28 @@ body.mode-online #hud-bottom { padding-right: 84px; }
 
 .gameover-online-status { color: var(--warn) !important; font-size: 14px !important; min-height: 1.4em; }
 
-/* Desktop: chat as a fixed side sheet on the right, clear of the side panel */
+/* Desktop: chat anchored bottom-left, below the red/black captured board */
 @media (min-width: 1024px) {
   #chat-drawer {
-    left: auto;
-    right: calc(env(safe-area-inset-right) + 304px);
+    left: calc(env(safe-area-inset-left) + 12px);
+    right: auto;
     bottom: 12px;
     width: 350px;
-    max-height: 520px;
+    /* 520px 加高三分之一（693px）；上限再預留左上角紅黑戰況看板的高度，
+       讓抽屜頂端不會向上蓋住看板，同時不超出螢幕 */
+    max-height: none;
+    height: min(693px, calc(100vh - 340px));
+    height: min(693px, calc(100dvh - 340px));
     border: 1px solid var(--line);
     border-radius: 14px;
   }
   #btn-chat {
-    right: calc(env(safe-area-inset-right) + 304px);
+    right: auto;
+    left: calc(env(safe-area-inset-left) + 12px);
     bottom: 12px;
   }
+  /* 保險：戰況看板永遠浮在聊天抽屜之上 */
+  #hud-captured { z-index: 7; }
   body.mode-online #btn-chat[aria-expanded="true"] { display: none !important; }
 }
 

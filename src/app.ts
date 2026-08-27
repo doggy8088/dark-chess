@@ -815,6 +815,8 @@ export class App {
     this.beginSession(state, options)
     this.chat.setSelf(seat === 0 || seat === 1 ? seat : null, this.myOnlineName)
     this.chat.updateState(state)
+    // 桌面版進入對局時聊天抽屜預設開啟（左下角）
+    if (window.matchMedia('(min-width: 1024px)').matches) this.chat.show()
     if (options.intro) {
       const mySeatName = seat === 0 || seat === 1 ? state.players[seat].name : null
       this.hud.showHint(mySeatName ? `${mySeatName}，對局開始！第一手翻出的顏色就是你的陣營` : '對局開始（觀戰中）')
