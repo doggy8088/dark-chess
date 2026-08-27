@@ -1350,10 +1350,12 @@ body.mode-online #hud-bottom { padding-right: 84px; }
   padding-bottom: 2px;
   scrollbar-width: none;
   flex: none;
+  scroll-snap-type: x proximity;
 }
 #chat-canned::-webkit-scrollbar { display: none; }
 .canned-chip {
   flex: none;
+  scroll-snap-align: start;
   padding: 6px 12px;
   border-radius: 999px;
   border: 1px solid var(--line);
