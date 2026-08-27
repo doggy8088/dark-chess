@@ -583,6 +583,7 @@ button { font: inherit; color: inherit; }
 }
 .home-copyright a:hover { color: #e2bf7c; border-bottom-color: #e2bf7c; }
 .home-copyright a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.home-version { margin-top: 4px; color: #6d6152; font-size: 11px; letter-spacing: .12em; font-variant-numeric: tabular-nums; }
 
 /* ============ Buttons ============ */
 .btn {
