@@ -166,10 +166,15 @@ button { font: inherit; color: inherit; }
   margin: 0 auto;
 }
 
-/* 首頁按鈕：四個動作各自有個性，但共用同一套互動節奏 */
+/* 首頁按鈕：字型、尺寸、字距、圓角全面統一，個性只留在配色與邊框，
+   讓四顆按鈕像同一套系統裡的四個角色，而不是四種風格 */
 .home-actions .btn {
   position: relative;
   overflow: hidden;
+  min-height: 52px;
+  font-size: 16px;
+  letter-spacing: .25em;
+  text-indent: .25em;
   border-radius: 12px;
   transition: transform .15s ease, box-shadow .2s ease, background-color .15s ease, border-color .15s ease, color .15s ease;
 }
@@ -177,14 +182,8 @@ button { font: inherit; color: inherit; }
 .home-actions .btn:active { transform: translateY(0) scale(.98); }
 .home-actions .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-/* 開始遊戲 — 主角：金漆大按鈕，楷體直書感，hover 帶一道掃光 */
+/* 開始遊戲 — 主角：金漆，hover 帶一道掃光 */
 .btn-start {
-  min-height: 58px;
-  font-family: var(--font-display);
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: .35em;
-  text-indent: .35em;
   background: linear-gradient(180deg, #e8c67e, #c1914b 58%, #a87c3d);
   color: #241708;
   border: 1px solid #8f6c33;
@@ -205,7 +204,7 @@ button { font: inherit; color: inherit; }
 }
 .btn-start:hover::after { left: 125%; }
 
-/* 繼續上一局 — 朱砂印：像蓋下去的紅印 */
+/* 繼續上一局 — 朱砂 */
 .btn-resume {
   background: linear-gradient(180deg, #d1553f, #a93322);
   color: #ffe9dd;
@@ -217,7 +216,7 @@ button { font: inherit; color: inherit; }
   box-shadow: 0 6px 18px rgba(209,85,63,.3), 0 3px 12px rgba(0,0,0,.4);
 }
 
-/* 線上對戰 — 玉青：連線的青玉色 */
+/* 線上對戰 — 玉青 */
 .btn-online {
   background: linear-gradient(180deg, #85bd8f, #5b9668);
   color: #10241a;
@@ -229,12 +228,8 @@ button { font: inherit; color: inherit; }
   box-shadow: 0 6px 18px rgba(111,174,124,.28), 0 3px 12px rgba(0,0,0,.4);
 }
 
-/* 遊戲規則 — 紙籤：虛線邊像釘在牆上的字條，刻意低調 */
+/* 遊戲規則 — 紙籤：虛線邊、降低明度，維持次要動作的收斂 */
 .btn-rules {
-  min-height: 44px;
-  font-size: 14px;
-  letter-spacing: .3em;
-  text-indent: .3em;
   background: rgba(255,255,255,.03);
   border: 1px dashed var(--line);
   color: var(--ink-dim);
