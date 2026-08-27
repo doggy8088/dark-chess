@@ -2,6 +2,12 @@
 
 3D 網頁暗棋（Vite + Three.js + Rapier + 純 TS 規則引擎 `src/game/`），含線上對戰（`server/`：Node + WebSocket，部署於 Cloud Run + Firestore）。常用指令見 `Makefile`（`make help`）。
 
+## 正式環境網址
+
+- **Cloud Run（線上對戰主站）**：https://dark-chess-327655012190.asia-east1.run.app （專案 `vertex-ai-sprint` · 區域 `asia-east1` · 服務 `dark-chess`）
+- **GitHub Pages（單機版靜態站）**：https://dark-chess.gh.miniasp.com （CNAME 見 `public/CNAME`）
+- 健康檢查：`GET /api/health`（回傳版號，部署後可用來確認新版已生效）。
+
 ## 版號規則（每次更版必做）
 
 - 版號唯一來源是 `package.json` 的 `version`；前端經 Vite `define`、伺服器經 esbuild `--define` 注入 `__APP_VERSION__`，顯示於首頁頁腳、對局畫面版權列與 `/api/health`。
