@@ -10,7 +10,7 @@ GCP_PROJECT := vertex-ai-sprint
 GCP_REGION  := asia-east1
 RUN_SERVICE := dark-chess
 
-.PHONY: help install dev dev-server test watch typecheck build preview clean deploy status open start-local deploy-run logs-run open-run bump
+.PHONY: help install dev dev-server test watch typecheck build preview clean deploy status open start-local deploy-run logs-run open-run url-run bump
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -46,12 +46,23 @@ preview: build ## Serve the production build locally
 clean: ## Remove build output and node_modules
 	rm -rf dist dist-server node_modules
 
-deploy-run: bump ## Deploy the online-multiplayer service to Cloud Run; auto-bumps version
+deploy-run: bump ## Deploy the online-multiplayer service to Cloud Run; auto-bumps version, prints production URL
 	gcloud run deploy $(RUN_SERVICE) --source . \
 	  --project $(GCP_PROJECT) --region $(GCP_REGION) \
 	  --allow-unauthenticated --session-affinity \
 	  --timeout 3600 --min-instances 0 --max-instances 1 \
 	  --memory 512Mi --port 8080
+	@url=$$(gcloud run services describe $(RUN_SERVICE) --region $(GCP_REGION) --project $(GCP_PROJECT) --format 'value(status.url)'); \
+	printf '\n==============================================================\n'; \
+	printf '  ✅ 部署完成 · 正式機網址： %s\n' "$$url"; \
+	printf '     健康檢查： %s/api/health\n' "$$url"; \
+	printf '==============================================================\n'; \
+	printf '  版號驗證：'; curl -s --max-time 15 "$$url/api/health" || true; printf '\n'
+
+url-run: ## Show the Cloud Run production URL and health version
+	@url=$$(gcloud run services describe $(RUN_SERVICE) --region $(GCP_REGION) --project $(GCP_PROJECT) --format 'value(status.url)'); \
+	printf '正式機網址： %s\n健康檢查：   %s/api/health\n版號驗證：   ' "$$url" "$$url"; \
+	curl -s --max-time 15 "$$url/api/health" || true; printf '\n'
 
 logs-run: ## Tail Cloud Run service logs
 	gcloud run services logs read $(RUN_SERVICE) --region $(GCP_REGION) --project $(GCP_PROJECT) --limit 50
