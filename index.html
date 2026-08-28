@@ -205,12 +205,14 @@
           <span id="hud-timer" aria-label="對局時間">0:00</span>
           <span id="hud-nocapture" aria-label="無吃子回合數">無吃子 0/25</span>
           <span id="opponent-status" class="online-only" aria-live="polite" hidden></span>
-          <button id="btn-fullscreen" class="icon-btn" type="button" aria-label="進入全螢幕">
-            <svg id="fs-icon-expand" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <svg id="fs-icon-compress" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" hidden><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
         </div>
       </header>
+
+      <!-- 全螢幕：桌面版獨立按鈕，固定於畫面右上角 -->
+      <button id="btn-fullscreen" class="icon-btn" type="button" aria-label="進入全螢幕">
+        <svg id="fs-icon-expand" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg id="fs-icon-compress" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" hidden><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
 
       <div id="hud-captured" aria-label="被吃棋子">
         <div class="captured-row" id="captured-red-row">

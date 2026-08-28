@@ -1130,7 +1130,8 @@ button { font: inherit; color: inherit; }
     flex-direction: column;
     gap: 12px;
     position: absolute;
-    top: calc(env(safe-area-inset-top) + 12px);
+    /* 頂部下移，讓出右上角給全螢幕按鈕 */
+    top: calc(env(safe-area-inset-top) + 58px);
     right: calc(env(safe-area-inset-right) + 12px);
     bottom: calc(env(safe-area-inset-bottom) + 12px);
     width: 280px;
@@ -1412,7 +1413,7 @@ body.mode-online #hud-bottom { padding-right: 84px; }
   gap: 8px;
 }
 
-/* 全螢幕按鈕：手機版隱藏（iOS Safari 不支援 Fullscreen API） */
+/* 全螢幕按鈕：桌面版固定於畫面右上角（對局紀錄面板上方），手機版隱藏 */
 #btn-fullscreen { display: none; }
 
 /* Chat Tabs */
@@ -1720,7 +1721,16 @@ body.mode-online #hud-bottom { padding-right: 84px; }
   #hud-captured { z-index: 7; }
 
   /* 全螢幕按鈕（桌面版才顯示） */
-  #btn-fullscreen { min-width: 34px; min-height: 34px; border-radius: 8px; display: inline-flex; }
+  #btn-fullscreen {
+    display: inline-flex;
+    position: absolute;
+    top: calc(env(safe-area-inset-top) + 12px);
+    right: calc(env(safe-area-inset-right) + 12px);
+    z-index: 8;
+    min-width: 40px;
+    min-height: 40px;
+    border-radius: 10px;
+  }
   #btn-fullscreen svg[hidden] { display: none; }
 
   /* 聊天視窗右下角縮放控制（桌面版專用） */
