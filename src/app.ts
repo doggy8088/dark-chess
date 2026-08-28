@@ -918,17 +918,17 @@ export class App {
     el<HTMLInputElement>('input-join-name').value = resolveNickname(this.settings.playerNames[0])
     if (intent === 'watch') {
       el('join-title').textContent = '進入觀戰'
-      el('join-desc').textContent = '輸入你的暱稱後進場觀戰——可以在聊天室裡幫喊加油，但不能下棋。'
+      el('join-desc').textContent = '暱稱已幫你填好，3 秒後自動進場觀戰——可以在聊天室裡幫喊加油，但不能下棋。修改暱稱即可取消倒數。'
       el('btn-join-go').textContent = '進入觀戰'
       el('join-rules-note').hidden = true
     } else {
       el('join-title').textContent = '加入對戰'
-      el('join-desc').textContent = '輸入你的暱稱後加入對戰；若座位已滿，將以觀眾身分進場（可聊天，不能下棋）。'
+      el('join-desc').textContent = '暱稱已幫你填好，3 秒後自動加入；若座位已滿，將以觀眾身分進場（可聊天，不能下棋）。修改暱稱即可取消倒數。'
       el('btn-join-go').textContent = '加入對戰'
       el('join-rules-note').hidden = false
     }
     showScreen('screen-online-join')
-    if (intent === 'play') this.startJoinCountdown()
+    this.startJoinCountdown()
   }
 
   /** 加入對戰 3 秒倒數：暱稱已預填且未修改時自動進入房間。 */
