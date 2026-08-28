@@ -376,6 +376,7 @@ async function refreshDayChart(): Promise<void> {
 // -------------------------------------------------------------------- boot
 
 async function boot(): Promise<void> {
+  el('admin-footer-version').textContent = `v${__APP_VERSION__}`
   el('btn-announce-send').addEventListener('click', () => void sendAnnouncement())
   el('btn-admin-logout').addEventListener('click', async () => {
     await request('/api/admin/logout', { method: 'POST' }).catch(() => undefined)

@@ -149,3 +149,19 @@ body {
 .admin-announcement-reads { align-self: center; font-size: 12px; color: var(--admin-accent); white-space: nowrap; }
 
 canvas { max-width: 100%; }
+
+.admin-footer {
+  text-align: center;
+  padding: 8px 24px 28px;
+  font-size: 12px;
+  color: var(--admin-muted);
+}
+
+.admin-footer p { margin: 0; }
+
+.admin-footer a {
+  color: var(--admin-accent);
+  text-decoration: none;
+}
+
+.admin-footer a:hover { text-decoration: underline; }
