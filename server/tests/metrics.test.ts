@@ -76,6 +76,8 @@ describe('Metrics', () => {
       roomsWaitingPeak: 1,
       lagP95Max: 5,
       lagMax: 9,
+      cpuPeak: 42.5,
+      cpuSum: 1_200,
       rssPeak: 300_000_000,
       heapPeak: 100_000_000,
     })
@@ -93,6 +95,8 @@ describe('Metrics', () => {
       roomsWaitingPeak: 0,
       lagP95Max: 4,
       lagMax: 6,
+      cpuPeak: 18.2,
+      cpuSum: 600,
       rssPeak: 250_000_000,
       heapPeak: 90_000_000,
     })
@@ -109,19 +113,26 @@ describe('Metrics', () => {
     expect(evening?.http).toBe(80)
     expect(evening?.wsMsg).toBe(400)
     expect(evening?.connPeak).toBe(5)
+    expect(evening?.cpuPeak).toBe(18.2)
     expect(lateNight?.http).toBe(120)
     expect(lateNight?.wsMsg).toBe(600)
     expect(lateNight?.connPeak).toBe(8)
+    expect(lateNight?.cpuPeak).toBe(42.5)
   })
 
   it('reports a live snapshot from the gauge provider', () => {
     const metrics = new Metrics({ gauge: makeGauge({ players: 2, spectators: 3, lobby: 1, roomsPlaying: 2, roomsWaiting: 1 }) })
+    metrics.sample()
+    metrics.sample()
     const live = metrics.live()
     expect(live.players).toBe(2)
     expect(live.spectators).toBe(3)
     expect(live.roomsPlaying).toBe(2)
     expect(live.roomsWaiting).toBe(1)
     expect(live.rssMb).toBeGreaterThan(0)
+    // CPU 取樣過兩次後應有數值，且介於 0–100。
+    expect(live.cpuPct).toBeGreaterThanOrEqual(0)
+    expect(live.cpuPct).toBeLessThanOrEqual(100)
   })
 
   it('dayKey follows Asia/Taipei (UTC+8)', () => {

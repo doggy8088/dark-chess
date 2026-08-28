@@ -20,6 +20,7 @@ interface LiveSnapshot {
   roomsPlaying: number
   roomsWaiting: number
   lagMs: number
+  cpuPct: number
   rssMb: number
   heapMb: number
   uptimeSec: number
@@ -37,6 +38,9 @@ interface MetricPoint {
   roomsWaitingPeak: number
   lagP95?: number
   lagP95Max?: number
+  cpuAvg?: number
+  cpuPeak?: number
+  cpuSum?: number
   rssPeak: number
   heapPeak: number
 }
@@ -215,6 +219,13 @@ async function refreshLive(): Promise<void> {
       delta: deltaOf(live.roomsWaiting, prevLive?.roomsWaiting),
     },
     {
+      emoji: '🖥️',
+      label: 'CPU 使用率',
+      value: `${live.cpuPct}%`,
+      status: cpuStatus(live.cpuPct).text,
+      tone: cpuStatus(live.cpuPct).tone,
+    },
+    {
       emoji: '⚡',
       label: 'Event-loop 延遲',
       value: `${live.lagMs} ms`,
@@ -225,19 +236,19 @@ async function refreshLive(): Promise<void> {
       emoji: '🧠',
       label: '記憶體 RSS',
       value: `${live.rssMb} MB`,
-      status: memStatus(live.rssMb).text,
+      status: `Heap ${live.heapMb} MB · ${memStatus(live.rssMb).text}`,
       tone: memStatus(live.rssMb).tone,
-    },
-    {
-      emoji: '📦',
-      label: 'Heap 使用',
-      value: `${live.heapMb} MB`,
-      status: memStatus(live.heapMb).text,
-      tone: memStatus(live.heapMb).tone,
     },
   ]
   prevLive = live
   renderLiveCards(cards)
+}
+
+function cpuStatus(pct: number): { text: string; tone: AdminLiveCard['tone'] } {
+  if (pct < 20) return { text: '閒得很，隨時能戰', tone: 'ok' }
+  if (pct < 60) return { text: '正常運作中', tone: 'ok' }
+  if (pct < 85) return { text: '有點忙碌 🔥', tone: 'warn' }
+  return { text: '滿載中，注意！', tone: 'bad' }
 }
 
 /** 指標卡上一次的快照，用於畫 ▲▼ 趨勢。 */
@@ -378,7 +389,7 @@ interface DatasetSpec {
   label: string
   data: number[]
   color: string
-  axis: 'y' | 'y1'
+  axis: 'y' | 'y1' | 'y2'
   fill?: boolean
 }
 
@@ -413,6 +424,13 @@ function baseOptions(): ChartConfiguration['options'] {
         position: 'right',
         beginAtZero: true,
         ticks: { color: '#b58bd8', callback: (value) => `${value} ms` },
+        grid: { drawOnChartArea: false },
+      },
+      y2: {
+        position: 'right',
+        beginAtZero: true,
+        max: 100,
+        ticks: { color: '#34d399', callback: (value) => `${value}%` },
         grid: { drawOnChartArea: false },
       },
     },
@@ -460,6 +478,7 @@ async function refreshMinuteChart(): Promise<void> {
     makeDataset({ label: '進行戰局', data: points.map((p) => p.roomsPlayingPeak), color: chartColor(1), axis: 'y' }),
     makeDataset({ label: 'WS 訊息/分', data: points.map((p) => p.wsMsg), color: chartColor(2), axis: 'y' }),
     makeDataset({ label: 'HTTP 請求/分', data: points.map((p) => p.http), color: chartColor(3), axis: 'y' }),
+    makeDataset({ label: 'CPU %', data: points.map((p) => p.cpuPeak ?? 0), color: '#34d399', axis: 'y2' }),
     makeDataset({ label: 'Event-loop lag p95', data: points.map((p) => p.lagP95 ?? 0), color: chartColor(4), axis: 'y1' }),
   ])
 }
@@ -475,6 +494,7 @@ async function refreshHourChart(): Promise<void> {
     makeDataset({ label: '進行戰局（峰值）', data: points.map((p) => p.roomsPlayingPeak), color: chartColor(1), axis: 'y' }),
     makeDataset({ label: 'WS 訊息/時', data: points.map((p) => p.wsMsg), color: chartColor(2), axis: 'y' }),
     makeDataset({ label: 'HTTP 請求/時', data: points.map((p) => p.http), color: chartColor(4), axis: 'y' }),
+    makeDataset({ label: 'CPU 峰值 %', data: points.map((p) => p.cpuPeak ?? 0), color: '#34d399', axis: 'y2' }),
     makeDataset({ label: 'Event-loop lag p95', data: points.map((p) => p.lagP95Max ?? 0), color: chartColor(4), axis: 'y1' }),
   ])
 }
@@ -490,6 +510,7 @@ async function refreshDayChart(): Promise<void> {
     makeDataset({ label: '進行戰局（峰值）', data: points.map((p) => p.roomsPlayingPeak), color: chartColor(1), axis: 'y' }),
     makeDataset({ label: 'WS 訊息/天', data: points.map((p) => p.wsMsg), color: chartColor(2), axis: 'y' }),
     makeDataset({ label: 'HTTP 請求/天', data: points.map((p) => p.http), color: chartColor(4), axis: 'y' }),
+    makeDataset({ label: 'CPU 峰值 %', data: points.map((p) => p.cpuPeak ?? 0), color: '#34d399', axis: 'y2' }),
     makeDataset({ label: 'Event-loop lag p95', data: points.map((p) => p.lagP95Max ?? 0), color: chartColor(4), axis: 'y1' }),
   ])
 }

@@ -27,6 +27,9 @@ export interface MinuteBucket {
   roomsWaitingPeak: number
   lagP95: number
   lagMax: number
+  /** CPU 使用率（單一 vCPU 的百分比，0–100）。 */
+  cpuAvg: number
+  cpuPeak: number
   rssPeak: number
   heapPeak: number
 }
@@ -45,6 +48,9 @@ export interface HourPoint {
   roomsWaitingPeak: number
   lagP95Max: number
   lagMax: number
+  /** 小時內 CPU 峰值與各分鐘平均值的總和（小時平均 = cpuSum / samples）。 */
+  cpuPeak: number
+  cpuSum: number
   rssPeak: number
   heapPeak: number
 }
@@ -56,6 +62,8 @@ export interface MetricsPersistence {
 
 export interface LiveSnapshot extends GaugeSample {
   lagMs: number
+  /** 即時 CPU 使用率（0–100，單一 vCPU）。 */
+  cpuPct: number
   rssMb: number
   heapMb: number
   uptimeSec: number
@@ -92,6 +100,9 @@ interface PartialMinute {
   gauges: GaugeSample[]
   rssPeak: number
   heapPeak: number
+  cpuSum: number
+  cpuPeak: number
+  cpuSamples: number
 }
 
 export class Metrics {
@@ -103,6 +114,8 @@ export class Metrics {
   private samplerTimer: ReturnType<typeof setInterval> | null = null
   private collectTimer: ReturnType<typeof setInterval> | null = null
   private lastLagMs = 0
+  private lastCpuPct = 0
+  private lastCpuSample: { usage: NodeJS.CpuUsage; at: number } | null = null
 
   constructor(
     private readonly opts: {
@@ -151,10 +164,10 @@ export class Metrics {
   }
 
   private newPartial(t: number): PartialMinute {
-    return { t: minuteStart(t), http: 0, wsMsg: 0, lagSamples: [], gauges: [], rssPeak: 0, heapPeak: 0 }
+    return { t: minuteStart(t), http: 0, wsMsg: 0, lagSamples: [], gauges: [], rssPeak: 0, heapPeak: 0, cpuSum: 0, cpuPeak: 0, cpuSamples: 0 }
   }
 
-  /** Takes one gauge + memory + lag sample into the current minute. */
+  /** Takes one gauge + memory + CPU + lag sample into the current minute. */
   sample(): void {
     const now = this.opts.now?.() ?? Date.now()
     if (minuteStart(now) !== this.current.t) this.collect(now)
@@ -163,7 +176,24 @@ export class Metrics {
     const memory = process.memoryUsage()
     this.current.rssPeak = Math.max(this.current.rssPeak, memory.rss)
     this.current.heapPeak = Math.max(this.current.heapPeak, memory.heapUsed)
+    this.sampleCpu()
     this.recordLag()
+  }
+
+  /** CPU 使用率：兩次取樣間的 CPU 時間 ÷ 真實經過時間（單一 vCPU 為 100%）。 */
+  private sampleCpu(): void {
+    const usage = process.cpuUsage()
+    const realNow = Date.now()
+    if (this.lastCpuSample) {
+      const wallMs = Math.max(1, realNow - this.lastCpuSample.at)
+      const cpuUsec =
+        usage.user - this.lastCpuSample.usage.user + (usage.system - this.lastCpuSample.usage.system)
+      this.lastCpuPct = Math.min(100, Math.max(0, (cpuUsec / (wallMs * 1000)) * 100))
+      this.current.cpuSum += this.lastCpuPct
+      this.current.cpuPeak = Math.max(this.current.cpuPeak, this.lastCpuPct)
+      this.current.cpuSamples++
+    }
+    this.lastCpuSample = { usage, at: realNow }
   }
 
   private recordLag(): void {
@@ -198,6 +228,8 @@ export class Metrics {
         roomsWaitingPeak: gauges.length > 0 ? Math.max(...gauges.map((g) => g.roomsWaiting)) : 0,
         lagP95: percentile95(partial.lagSamples),
         lagMax: partial.lagSamples.length > 0 ? Math.max(...partial.lagSamples) : 0,
+        cpuAvg: partial.cpuSamples > 0 ? partial.cpuSum / partial.cpuSamples : 0,
+        cpuPeak: partial.cpuPeak,
         rssPeak: partial.rssPeak,
         heapPeak: partial.heapPeak,
       }
@@ -233,6 +265,8 @@ export class Metrics {
       roomsWaitingPeak: Math.max(...buckets.map((b) => b.roomsWaitingPeak)),
       lagP95Max: Math.max(...buckets.map((b) => b.lagP95)),
       lagMax: Math.max(...buckets.map((b) => b.lagMax)),
+      cpuPeak: Math.max(...buckets.map((b) => b.cpuPeak)),
+      cpuSum: buckets.reduce((sum, b) => sum + b.cpuAvg, 0),
       rssPeak: Math.max(...buckets.map((b) => b.rssPeak)),
       heapPeak: Math.max(...buckets.map((b) => b.heapPeak)),
     }
@@ -264,6 +298,7 @@ export class Metrics {
     return {
       ...gauge,
       lagMs: Math.round(this.lastLagMs * 10) / 10,
+      cpuPct: Math.round(this.lastCpuPct * 10) / 10,
       rssMb: Math.round((memory.rss / 1_048_576) * 10) / 10,
       heapMb: Math.round((memory.heapUsed / 1_048_576) * 10) / 10,
       uptimeSec: Math.round(process.uptime()),
@@ -313,6 +348,8 @@ export class Metrics {
         roomsWaitingPeak: 0,
         lagP95Max: 0,
         lagMax: 0,
+        cpuPeak: 0,
+        cpuSum: 0,
         rssPeak: 0,
         heapPeak: 0,
       }
@@ -328,6 +365,8 @@ export class Metrics {
       acc.roomsWaitingPeak = Math.max(acc.roomsWaitingPeak, point.roomsWaitingPeak)
       acc.lagP95Max = Math.max(acc.lagP95Max, point.lagP95Max)
       acc.lagMax = Math.max(acc.lagMax, point.lagMax)
+      acc.cpuPeak = Math.max(acc.cpuPeak, point.cpuPeak)
+      acc.cpuSum += point.cpuSum
       acc.rssPeak = Math.max(acc.rssPeak, point.rssPeak)
       acc.heapPeak = Math.max(acc.heapPeak, point.heapPeak)
       byDay.set(day, acc)
