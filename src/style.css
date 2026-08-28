@@ -1101,6 +1101,15 @@ button { font: inherit; color: inherit; }
   .panel-actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .panel-actions .btn { flex: 1 1 45%; }
 
+  /* 對局紀錄收合：只收起清單，按鈕區保留 */
+  .panel-heading-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .panel-heading-row .panel-heading { margin: 0; }
+  .panel-heading-row .icon-btn { min-width: 30px; min-height: 30px; border-radius: 8px; backdrop-filter: none; background: transparent; border-color: transparent; }
+  .panel-heading-row .icon-btn:hover { border-color: var(--line); background: rgba(20,13,10,.72); }
+  #panel-side.history-collapsed .panel-block:first-child { flex: 0 0 auto; }
+  #panel-side.history-collapsed #history-list { display: none; }
+  #panel-side.history-collapsed #side-history-chevron { transform: rotate(180deg); }
+
   #hud-bottom { display: none; }
   #history-drawer { display: none !important; }
   #btn-menu { display: none; }
@@ -1355,6 +1364,10 @@ body.mode-online #hud-bottom { padding-right: 84px; }
   align-items: center;
   gap: 8px;
 }
+
+/* 全螢幕按鈕：手機版置於計時器下方 */
+#btn-fullscreen { min-width: 38px; min-height: 38px; border-radius: 8px; margin-top: 4px; }
+#btn-fullscreen svg[hidden] { display: none; }
 
 /* Chat Tabs */
 .chat-tabs {
@@ -1657,6 +1670,35 @@ body.mode-online #hud-bottom { padding-right: 84px; }
   }
   /* 保險：戰況看板永遠浮在聊天抽屜之上 */
   #hud-captured { z-index: 7; }
+
+  /* 全螢幕按鈕 */
+  #btn-fullscreen { min-width: 34px; min-height: 34px; border-radius: 8px; }
+
+  /* 聊天視窗右下角縮放控制（桌面版專用） */
+  #chat-resize-handle {
+    display: block;
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    width: 18px;
+    height: 18px;
+    cursor: nwse-resize;
+    touch-action: none;
+    z-index: 3;
+  }
+  #chat-resize-handle::before {
+    content: '';
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    width: 9px;
+    height: 9px;
+    border-right: 2px solid var(--ink-dim);
+    border-bottom: 2px solid var(--ink-dim);
+    border-bottom-right-radius: 3px;
+    opacity: .75;
+  }
+  #chat-resize-handle:hover::before { border-color: var(--accent); }
   body.mode-online #btn-chat[aria-expanded="true"] { display: none !important; }
 }
 

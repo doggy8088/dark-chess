@@ -72,6 +72,9 @@ export class ChatPanel {
       this.input.value = ''
     })
 
+    this.wireResize()
+    this.applySavedSize()
+
     const cannedRow = el('chat-canned')
     const reshuffleCanned = (): void => this.renderCannedChips(cannedRow, fisherYatesShuffle(CANNED_MESSAGES))
     reshuffleCanned()
@@ -204,6 +207,13 @@ export class ChatPanel {
   show(tab?: 'chat' | 'members'): void {
     this.drawer.hidden = false
     this.toggleButton.setAttribute('aria-expanded', 'true')
+    if (window.matchMedia('(min-width: 1024px)').matches) {
+      this.applySavedSize()
+    } else {
+      // Mobile uses the CSS bottom sheet — never carry desktop inline sizes over.
+      this.drawer.style.removeProperty('width')
+      this.drawer.style.removeProperty('height')
+    }
     if (tab) {
       this.switchTab(tab)
     } else if (this.activeTab === 'chat') {
@@ -431,5 +441,64 @@ export class ChatPanel {
     }
     handle.addEventListener('pointerup', stop)
     handle.addEventListener('pointercancel', stop)
+  }
+
+  /** Resizable drawer (desktop only): the bottom-right grip adjusts width/height. */
+  private wireResize(): void {
+    const handle = el('chat-resize-handle')
+    handle.style.touchAction = 'none'
+    let resizing = false
+    let startPointerX = 0
+    let startPointerY = 0
+    let startWidth = 0
+    let startHeight = 0
+    let anchorLeft = 0
+    let anchorBottom = 0
+
+    handle.addEventListener('pointerdown', (event) => {
+      const rect = this.drawer.getBoundingClientRect()
+      resizing = true
+      startPointerX = event.clientX
+      startPointerY = event.clientY
+      startWidth = rect.width
+      startHeight = rect.height
+      anchorLeft = rect.left
+      anchorBottom = rect.bottom
+      handle.setPointerCapture(event.pointerId)
+      event.preventDefault()
+    })
+    handle.addEventListener('pointermove', (event) => {
+      if (!resizing) return
+      const maxWidth = Math.max(320, window.innerWidth - anchorLeft - 8)
+      const maxHeight = Math.max(260, anchorBottom - 8)
+      const width = Math.round(Math.min(Math.max(startWidth + (event.clientX - startPointerX), 320), maxWidth))
+      const height = Math.round(Math.min(Math.max(startHeight + (event.clientY - startPointerY), 260), maxHeight))
+      this.drawer.style.width = `${width}px`
+      this.drawer.style.height = `${height}px`
+    })
+    const stop = () => {
+      if (!resizing) return
+      resizing = false
+      try {
+        localStorage.setItem('chatDrawerSize', JSON.stringify({ width: this.drawer.offsetWidth, height: this.drawer.offsetHeight }))
+      } catch {
+        // Storage unavailable — size simply won't persist.
+      }
+    }
+    handle.addEventListener('pointerup', stop)
+    handle.addEventListener('pointercancel', stop)
+  }
+
+  /** Restores the remembered desktop size, if any. */
+  private applySavedSize(): void {
+    try {
+      const saved = JSON.parse(localStorage.getItem('chatDrawerSize') ?? 'null') as { width?: number; height?: number } | null
+      if (saved && typeof saved.width === 'number' && typeof saved.height === 'number' && saved.width >= 320 && saved.height >= 260) {
+        this.drawer.style.width = `${Math.round(saved.width)}px`
+        this.drawer.style.height = `${Math.round(saved.height)}px`
+      }
+    } catch {
+      // Corrupted storage — keep CSS defaults.
+    }
   }
 }

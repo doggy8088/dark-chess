@@ -343,6 +343,62 @@ export class App {
       historyButton.setAttribute('aria-expanded', String(!drawer.hidden))
     })
     el('btn-history-close').addEventListener('click', () => this.closeDrawer())
+
+    this.wireSideHistoryToggle()
+    this.wireFullscreen()
+  }
+
+  /** 桌面版右側「對局紀錄」收合開關（狀態存 localStorage）。 */
+  private wireSideHistoryToggle(): void {
+    const panel = el('panel-side')
+    const toggle = el<HTMLButtonElement>('btn-side-history')
+    const apply = (collapsed: boolean): void => {
+      panel.classList.toggle('history-collapsed', collapsed)
+      toggle.setAttribute('aria-expanded', String(!collapsed))
+      toggle.setAttribute('aria-label', collapsed ? '展開對局紀錄' : '收合對局紀錄')
+    }
+    toggle.addEventListener('click', () => {
+      const collapsed = !panel.classList.contains('history-collapsed')
+      apply(collapsed)
+      try {
+        localStorage.setItem('sideHistoryCollapsed', JSON.stringify(collapsed))
+      } catch {
+        // Storage unavailable — toggle still works for this session.
+      }
+    })
+    try {
+      if (JSON.parse(localStorage.getItem('sideHistoryCollapsed') ?? 'false') === true) apply(true)
+    } catch {
+      // Corrupted storage — start expanded.
+    }
+  }
+
+  /** 全螢幕切換（Fullscreen API），圖示與 aria 狀態隨之切換。 */
+  private wireFullscreen(): void {
+    const button = el<HTMLButtonElement>('btn-fullscreen')
+    const expandIcon = document.getElementById('fs-icon-expand')
+    const compressIcon = document.getElementById('fs-icon-compress')
+    const sync = (): void => {
+      const active = document.fullscreenElement !== null
+      if (expandIcon) expandIcon.hidden = active
+      if (compressIcon) compressIcon.hidden = !active
+      button.setAttribute('aria-label', active ? '離開全螢幕' : '進入全螢幕')
+    }
+    button.addEventListener('click', () => void this.toggleFullscreen())
+    document.addEventListener('fullscreenchange', sync)
+    sync()
+  }
+
+  private async toggleFullscreen(): Promise<void> {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen()
+      } else {
+        await document.documentElement.requestFullscreen()
+      }
+    } catch {
+      this.hud.showHint('此瀏覽器或裝置不支援全螢幕模式')
+    }
   }
 
   // -------------------------------------------------------------- online UI
