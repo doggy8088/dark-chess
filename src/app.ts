@@ -1001,7 +1001,13 @@ export class App {
         this.chat.addNotice('對方不同意結束對戰')
       },
       onRematchOffered: () => void this.handleRematchOffered(),
-      onRematchRejected: () => this.setGameOverStatus('對方婉拒了再來一局'),
+      onRematchRejected: () => {
+        if (this.online?.seat === 'spectator') {
+          this.setGameOverStatus('玩家們先不續戰——留在這裡隨時看下一場！')
+          return
+        }
+        this.setGameOverStatus('對方婉拒了再來一局')
+      },
       onRematchStart: (state, hidden) => {
         el<HTMLDialogElement>('dialog-gameover').close()
         this.chat.addNotice('新的一局開始！')
@@ -1093,6 +1099,12 @@ export class App {
   }
 
   private async handleRematchOffered(): Promise<void> {
+    // 觀戰者無法回應再賽邀請：改為告知，留下來就能看下一場。
+    if (this.online?.seat === 'spectator') {
+      this.chat.addNotice('👀 玩家正在約「再來一局」——留下來就能觀戰下一場！')
+      this.hud.showHint('玩家正在約再來一局，留下來看下一場 🍿')
+      return
+    }
     this.setGameOverStatus('對方想再來一局！')
     const accept = await confirmDialog('再來一局', '對手邀請你再來一局（換對方先手）。接受嗎？')
     this.online?.respondRematch(accept)
@@ -1122,6 +1134,10 @@ export class App {
     this.setGameOverStatus('')
     const isSeated = this.online?.seat === 0 || this.online?.seat === 1
     el<HTMLButtonElement>('btn-again').hidden = !isSeated
+    // 觀戰者：結束不等於散場，鼓勵留下來等下一場。
+    if (this.online?.seat === 'spectator') {
+      this.setGameOverStatus('🍿 玩家們可以「再來一局」——留在這裡，下一局開始會自動帶你進場觀戰！')
+    }
 
     // Post outcome notice in chat and hint
     let outcomeNotice = ''
