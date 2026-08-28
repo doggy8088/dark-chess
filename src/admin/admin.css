@@ -42,6 +42,20 @@ body {
 
 .admin-user { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--admin-accent); }
 
+/* 管理員信箱預設模糊化，hover / 按住才顯示，避免旁人偷看 */
+#admin-email {
+  filter: blur(5px);
+  transition: filter 0.18s ease;
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#admin-email:hover,
+#admin-email:active {
+  filter: none;
+}
+
 .admin-main { padding: 20px 24px 48px; max-width: var(--admin-max); margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
 
 /* 區塊之間保留間距：儀表板內的卡片（指標、公告、圖表）也要有 margin */
