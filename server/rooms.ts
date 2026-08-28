@@ -77,16 +77,17 @@ export class RoomManager {
   }
 
   /**
-   * Live-games board for the home screen: games in progress, plus finished
-   * games that linger for a few minutes so results don't vanish mid-scroll.
-   * Newest room first — the order keys off creation time, which never
-   * changes, so rows never jump around while games progress.
+   * Live-games board for the home screen: games in progress, waiting rooms
+   * (after a short grace so quick private matches stay off the board), and
+   * finished games that linger for a few minutes so results don't vanish
+   * mid-scroll. Newest room first — the order keys off creation time, which
+   * never changes, so rows never jump around while games progress.
    */
   async listGames(limit = 50): Promise<GameSummary[]> {
     const now = this.deps.now()
     const rows = new Map<string, { summary: GameSummary; createdAt: number }>()
     const add = (doc: RoomDoc, spectators: number): void => {
-      if (!doc.seats[1]) return
+      if (doc.status === 'playing' && !doc.seats[1]) return
       if (!isLobbyListable(doc, now)) return
       const summary = summarizeDoc(doc)
       if (!summary) return
@@ -99,7 +100,8 @@ export class RoomManager {
     }
     const docs = await this.deps.store.listActive(limit, now)
     for (const doc of docs) {
-      if (rows.has(doc.roomId)) continue
+      // 記憶體中的房間狀態才是權威：store 可能還停留在異步寫入前的舊狀態。
+      if (rows.has(doc.roomId) || this.rooms.has(doc.roomId)) continue
       add(doc, this.rooms.get(doc.roomId)?.spectatorCount ?? 0)
     }
     const list = [...rows.values()]
@@ -156,6 +158,7 @@ export function summarizeDoc(doc: RoomDoc): GameSummary | null {
     return {
       roomId: doc.roomId,
       status: doc.status,
+      createdAt: doc.createdAt,
       players: [
         { name: state.players[0].name, color: state.players[0].color },
         { name: state.players[1].name, color: state.players[1].color },

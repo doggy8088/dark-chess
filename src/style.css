@@ -519,6 +519,20 @@ button { font: inherit; color: inherit; }
   color: #d1c7b7;
 }
 
+.war-tag-wait {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+}
+
+.war-tag-wait .war-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #f59e0b;
+  animation: radar-blink 1.2s infinite ease-in-out;
+}
+
 .war-tag-ended {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.18);

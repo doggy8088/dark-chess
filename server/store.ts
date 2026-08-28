@@ -1,5 +1,5 @@
 import type { ChatMessage, GameOverReason, RoomStatus } from '../src/shared/protocol'
-import { LOBBY_ENDED_RETENTION_MS } from './config'
+import { LOBBY_ENDED_RETENTION_MS, LOBBY_WAIT_VISIBILITY_MS } from './config'
 
 export interface SeatDoc {
   token: string
@@ -56,6 +56,10 @@ export interface RoomStore {
 /** True when the doc may appear on the home live board right now. */
 export function isLobbyListable(doc: RoomDoc, now: number): boolean {
   if (doc.status === 'playing') return true
+  if (doc.status === 'waiting') {
+    // 等待對手超過 30 秒的房間公開曝光，讓訪客直接加入。
+    return now - doc.createdAt >= LOBBY_WAIT_VISIBILITY_MS
+  }
   if (doc.status !== 'finished') return false
   const endedAt = doc.finishedAt ?? doc.updatedAt
   return now - endedAt < LOBBY_ENDED_RETENTION_MS

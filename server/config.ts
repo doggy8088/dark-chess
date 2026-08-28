@@ -6,6 +6,9 @@ export const TURN_MS = Number(process.env.TURN_MS ?? 60_000)
 /** When a seat is abandoned (disconnect/timeout), spectators get this long to take over. */
 export const TAKEOVER_WINDOW_MS = 5 * 60 * 1000
 
+/** 等待對手的房間在首頁戰情中心公開曝光前的最短等待。 */
+export const LOBBY_WAIT_VISIBILITY_MS = 30_000
+
 /** How long a disconnected player (whose move it is) may take to rejoin. */
 export const GRACE_MS = Number(process.env.GRACE_MS ?? 90_000)
 

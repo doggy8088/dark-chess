@@ -657,8 +657,8 @@ export class App {
 
     list.textContent = ''
 
-    // 「只看交戰中」：隱藏保留中的已結束房間（統計數字維持全伺服器計算）。
-    const visible = this.warLiveOnly ? games.filter((g) => g.status !== 'finished') : games
+    // 「只看交戰中」：只列出交戰中的房間（統計數字維持全伺服器計算）。
+    const visible = this.warLiveOnly ? games.filter((g) => g.status === 'playing') : games
     if (visible.length === 0) {
       const empty = document.createElement('li')
       empty.className = 'war-empty'
@@ -671,8 +671,9 @@ export class App {
       const remainingBlack = 16 - game.capturedBlack
       const totalCaptures = game.capturedRed + game.capturedBlack
       const isEnded = game.status === 'finished'
-      const isTight = !isEnded && game.turnNumber >= 10 && Math.abs(remainingRed - remainingBlack) <= 1
-      const isFierce = !isEnded && totalCaptures >= 12
+      const isWaiting = game.status === 'waiting'
+      const isTight = !isEnded && !isWaiting && game.turnNumber >= 10 && Math.abs(remainingRed - remainingBlack) <= 1
+      const isFierce = !isEnded && !isWaiting && totalCaptures >= 12
 
       // Check if updated since last snapshot
       const prev = this.prevLiveGames.get(game.roomId)
@@ -703,7 +704,10 @@ export class App {
       tags.className = 'war-card-tags'
 
       const liveTag = document.createElement('span')
-      if (isEnded) {
+      if (isWaiting) {
+        liveTag.className = 'war-tag war-tag-wait'
+        liveTag.innerHTML = '<span class="war-dot" aria-hidden="true"></span>等待加入'
+      } else if (isEnded) {
         liveTag.className = 'war-tag war-tag-ended'
         liveTag.textContent = '🏁 已結束'
       } else {
@@ -765,7 +769,7 @@ export class App {
       vsText.textContent = 'VS'
       const turnText = document.createElement('span')
       turnText.className = 'war-turn-text'
-      turnText.textContent = `第 ${game.turnNumber} 手`
+      turnText.textContent = isWaiting ? '等待開局' : `第 ${game.turnNumber} 手`
       centerVs.append(vsText, turnText)
 
       // Right Commander (Player 1)
@@ -773,10 +777,12 @@ export class App {
       cmdRight.className = `war-cmd-box ${p1.color ? (p1.color === 'red' ? 'is-red' : 'is-black') : 'is-neutral'}`
       const p1Name = document.createElement('div')
       p1Name.className = 'war-cmd-name'
-      p1Name.textContent = p1.name
+      p1Name.textContent = isWaiting ? '等待加入' : p1.name
       const p1Role = document.createElement('div')
       p1Role.className = 'war-cmd-forces'
-      if (p1.color === 'red') {
+      if (isWaiting) {
+        p1Role.textContent = '等你來挑戰'
+      } else if (p1.color === 'red') {
         p1Role.textContent = `紅方 · 剩 ${remainingRed} 兵`
       } else if (p1.color === 'black') {
         p1Role.textContent = `黑方 · 剩 ${remainingBlack} 兵`
@@ -821,18 +827,22 @@ export class App {
 
       const statsInfo = document.createElement('div')
       statsInfo.className = 'war-card-stats'
-      statsInfo.textContent = `已吃 ${totalCaptures} 子 · 紅損 ${game.capturedRed} / 黑損 ${game.capturedBlack}`
+      statsInfo.textContent = isWaiting
+        ? `已等待 ${Math.max(1, Math.floor((Date.now() - game.createdAt) / 1000))} 秒 · 點擊直接加入`
+        : `已吃 ${totalCaptures} 子 · 紅損 ${game.capturedRed} / 黑損 ${game.capturedBlack}`
 
       const watch = document.createElement('button')
       watch.type = 'button'
-      watch.className = 'btn btn-ghost btn-small war-btn-watch'
-      watch.innerHTML = isEnded
-        ? '觀看棋局 <span class="war-btn-arrow" aria-hidden="true">↗</span>'
-        : '進入觀戰 <span class="war-btn-arrow" aria-hidden="true">↗</span>'
-      watch.setAttribute('aria-label', `進入觀戰 ${p0.name} 對 ${p1.name}${isEnded ? '（已結束）' : ''}`)
+      watch.className = isWaiting ? 'btn btn-primary btn-small war-btn-watch' : 'btn btn-ghost btn-small war-btn-watch'
+      watch.innerHTML = isWaiting
+        ? '加入對戰 <span class="war-btn-arrow" aria-hidden="true">⚔️</span>'
+        : isEnded
+          ? '觀看棋局 <span class="war-btn-arrow" aria-hidden="true">↗</span>'
+          : '進入觀戰 <span class="war-btn-arrow" aria-hidden="true">↗</span>'
+      watch.setAttribute('aria-label', isWaiting ? `加入 ${p0.name} 的房間` : `進入觀戰 ${p0.name} 對 ${p1.name}${isEnded ? '（已結束）' : ''}`)
       watch.addEventListener('click', () => {
         history.replaceState(null, '', `/r/${game.roomId}`)
-        this.joinOnlineRoom(game.roomId, 'watch')
+        this.joinOnlineRoom(game.roomId, isWaiting ? 'play' : 'watch')
       })
 
       footer.append(statsInfo, watch)
