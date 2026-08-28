@@ -16,6 +16,7 @@ describe('live games board', () => {
     const deps = makeDeps()
     const manager = new RoomManager(deps.store, deps.now)
     const first = await startGame(manager)
+    deps.clock.advance(1_000)
     const second = await startGame(manager)
 
     const before = (await manager.listGames()).map((g) => g.roomId)

@@ -1,5 +1,5 @@
 import type { GameState } from '../src/game/types'
-import type { GameSummary } from '../src/shared/protocol'
+import type { AnnouncementInfo, GameSummary, ServerMessage } from '../src/shared/protocol'
 import { Room, type RoomDeps } from './room'
 import { newRoomId } from './ids'
 import { isLobbyListable, type RoomDoc, type RoomStore } from './store'
@@ -11,11 +11,17 @@ export class RoomManager {
   private readonly deps: RoomDeps
   private readonly listeners = new Set<() => void>()
 
-  constructor(store: RoomStore, now: () => number = () => Date.now()) {
+  constructor(
+    store: RoomStore,
+    now: () => number = Date.now,
+    hooks: { onAnnouncementAck?: (id: string, name: string) => void; activeAnnouncement?: () => AnnouncementInfo | null } = {},
+  ) {
     this.deps = {
       store,
       now,
       onActivity: () => this.notifyListeners(),
+      onAnnouncementAck: hooks.onAnnouncementAck,
+      activeAnnouncement: hooks.activeAnnouncement,
     }
   }
 
@@ -99,6 +105,27 @@ export class RoomManager {
     const list = [...rows.values()]
     list.sort((a, b) => b.createdAt - a.createdAt || a.summary.roomId.localeCompare(b.summary.roomId))
     return list.slice(0, limit).map((row) => row.summary)
+  }
+
+  /** Live-room stats for the admin dashboard gauge. */
+  stats(): { roomsPlaying: number; roomsWaiting: number; players: number; spectators: number } {
+    let roomsPlaying = 0
+    let roomsWaiting = 0
+    let players = 0
+    let spectators = 0
+    for (const room of this.rooms.values()) {
+      room.evaluate()
+      if (room.status === 'playing') roomsPlaying++
+      else if (room.status === 'waiting') roomsWaiting++
+      players += room.connectedPlayers
+      spectators += room.spectatorCount
+    }
+    return { roomsPlaying, roomsWaiting, players, spectators }
+  }
+
+  /** Fan-out a server-wide message to every room currently in memory. */
+  announce(msg: ServerMessage): void {
+    for (const room of this.rooms.values()) room.announce(msg)
   }
 
   /** Drops idle finished rooms from the cache (the store keeps them until TTL). */

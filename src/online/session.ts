@@ -1,5 +1,6 @@
 import type { Action, GameState, Piece } from '../game/types'
 import type {
+  AnnouncementInfo,
   ChatMessage,
   FairnessReveal,
   GameOverReason,
@@ -41,6 +42,8 @@ export interface OnlineSessionCallbacks {
   onRematchOffered(): void
   onRematchRejected(): void
   onRematchStart(state: GameState, hidden: Set<string>): void
+  /** Admin announcement requiring acknowledgement. */
+  onAnnouncement(announcement: AnnouncementInfo): void
   /** Transport status for the reconnect overlay. */
   onConnectionChanged(connected: boolean): void
   onError(code: string, message: string): void
@@ -170,6 +173,10 @@ export class OnlineSession {
     this.socket.send({ t: 'rematchResponse', accept })
   }
 
+  sendAnnouncementAck(id: string): void {
+    this.socket.send({ t: 'announcementAck', id })
+  }
+
   // --------------------------------------------------------------- inbound
 
   private route(msg: ServerMessage): void {
@@ -186,6 +193,9 @@ export class OnlineSession {
         this.setDeadline(msg.deadline)
         this.callbacks.onChatHistory(msg.chat)
         this.callbacks.onPresence(msg.presence)
+        if (msg.announcement) {
+          this.callbacks.onAnnouncement(msg.announcement)
+        }
         if (msg.gameOver) {
           this.gameOverInfo = msg.gameOver
         }
@@ -237,6 +247,9 @@ export class OnlineSession {
         break
       case 'presence':
         this.callbacks.onPresence(msg.presence)
+        break
+      case 'announcement':
+        this.callbacks.onAnnouncement({ id: msg.id, text: msg.text, at: msg.at })
         break
       case 'deadline':
         this.setDeadline(msg.deadline)

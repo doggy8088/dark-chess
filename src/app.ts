@@ -6,6 +6,7 @@ import { fisherYatesShuffle, secureRandomInt } from './game/shuffle'
 import { createCommitment, type FairnessData } from './game/fairness'
 import { GAME_OVER_REASON_TEXT, type GameSummary, type PresenceInfo } from './shared/protocol'
 import { resolveNickname } from './shared/fun-names'
+import type { AnnouncementInfo } from './shared/protocol'
 import { createSceneContext, isWebGLAvailable, type SceneContext } from './rendering/scene'
 import { PhysicsWorld } from './physics/world'
 import { GameController, type ControllerCallbacks } from './controller'
@@ -16,7 +17,7 @@ import { SoundPlayer } from './audio/sounds'
 import { Hud } from './ui/hud'
 import { ChatPanel } from './ui/chat'
 import { setupOnlineLobby, showInvite } from './ui/online-lobby'
-import { confirmDialog, openDialog, setupDialogs, showFairnessDialog, showGameOverDialog } from './ui/dialogs'
+import { confirmDialog, openDialog, setupDialogs, showAnnouncementDialog, showFairnessDialog, showGameOverDialog } from './ui/dialogs'
 import { setupHomeAndSetupScreens, showError, showScreen } from './ui/setup'
 import { el } from './ui/dom'
 import {
@@ -99,6 +100,7 @@ export class App {
       onCanned: (id) => this.online?.sendCanned(id),
       nameFor: (seat) => this.controller?.state?.players[seat]?.name ?? (seat === 0 ? '玩家一' : '玩家二'),
     })
+    this.wireAnnouncementStorage()
     this.wireGameUi()
     this.wireOnlineUi()
     this.homeControls = setupHomeAndSetupScreens({
@@ -464,6 +466,8 @@ export class App {
       onMessage: (msg) => {
         if (msg.t === 'lobby') {
           this.renderLiveGames(msg.games)
+        } else if (msg.t === 'announcement') {
+          this.showAnnouncement({ id: msg.id, text: msg.text, at: msg.at })
         }
       },
     })
@@ -473,6 +477,42 @@ export class App {
   private closeLobbySocket(): void {
     this.lobbySocket?.close()
     this.lobbySocket = null
+  }
+
+  // ------------------------------------------------------------ announcements
+
+  private ackedAnnouncements = new Set<string>()
+
+  private wireAnnouncementStorage(): void {
+    try {
+      const stored = JSON.parse(localStorage.getItem('acknowledgedAnnouncements') ?? '[]') as unknown
+      if (Array.isArray(stored)) {
+        for (const id of stored) {
+          if (typeof id === 'string') this.ackedAnnouncements.add(id)
+        }
+      }
+    } catch {
+      // Corrupted storage — treat as nothing acknowledged yet.
+    }
+  }
+
+  /** Shows an admin announcement; readers must click to dismiss (已讀). */
+  private showAnnouncement(announcement: AnnouncementInfo): void {
+    if (this.ackedAnnouncements.has(announcement.id)) return
+    showAnnouncementDialog(announcement.text, announcement.at, () => {
+      this.ackedAnnouncements.add(announcement.id)
+      if (this.ackedAnnouncements.size > 50) {
+        // Keep the most recent acknowledgements only.
+        this.ackedAnnouncements = new Set([...this.ackedAnnouncements].slice(-50))
+      }
+      try {
+        localStorage.setItem('acknowledgedAnnouncements', JSON.stringify([...this.ackedAnnouncements]))
+      } catch {
+        // Storage full or private mode — the ack still reaches the server.
+      }
+      this.online?.sendAnnouncementAck(announcement.id)
+      this.lobbySocket?.send({ t: 'announcementAck', id: announcement.id })
+    })
   }
 
   private updateWarRoomBadge(connected: boolean): void {
@@ -811,6 +851,7 @@ export class App {
         this.chat.addNotice('新的一局開始！')
         this.beginOnlineGame(state, hidden, { intro: true })
       },
+      onAnnouncement: (announcement) => this.showAnnouncement(announcement),
       onConnectionChanged: (connected) => this.setConnectionOverlay(!connected),
       onError: (code, message) => this.handleOnlineError(code, message),
       onYourTurnWhileHidden: () => this.notifyYourTurn(),

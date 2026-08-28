@@ -6,6 +6,7 @@ import { fisherYatesShuffle, secureRandomInt } from '../src/game/shuffle'
 import { computeCommitmentHash, generateNonce } from '../src/game/fairness'
 import { cannedText } from '../src/shared/canned'
 import type {
+  AnnouncementInfo,
   ChatMessage,
   ClientMessage,
   FairnessReveal,
@@ -45,6 +46,10 @@ export interface RoomDeps {
   store: RoomStore
   now(): number
   onActivity?: () => void
+  /** Called when any client acknowledges an announcement. */
+  onAnnouncementAck?: (id: string, name: string) => void
+  /** Current announcement to hand to newly joining clients. */
+  activeAnnouncement?: () => AnnouncementInfo | null
 }
 
 interface SeatState {
@@ -196,6 +201,16 @@ export class Room {
     return this.spectators.size > 0 || this.seats.some((s) => s?.socket)
   }
 
+  /** Seats with a live socket right now. */
+  get connectedPlayers(): number {
+    return (this.seats[0]?.socket ? 1 : 0) + (this.seats[1]?.socket ? 1 : 0)
+  }
+
+  /** Fan-out to everyone in the room (players + spectators). */
+  announce(msg: ServerMessage): void {
+    this.broadcast(msg)
+  }
+
   get spectatorCount(): number {
     return this.spectators.size
   }
@@ -227,6 +242,7 @@ export class Room {
       chat: this.chat.slice(-CHAT_TAIL_LENGTH),
       presence: this.presence(),
       fairnessHash: this.fairness.hash,
+      announcement: this.deps.activeAnnouncement?.() ?? null,
       gameOver:
         this.status === 'finished' && this.result
           ? { reason: this.result.reason, winnerIndex: this.result.winnerIndex, fairnessReveal: this.fairnessReveal() }
@@ -313,6 +329,13 @@ export class Room {
     if (msg.t === 'canned') {
       const text = cannedText(msg.id)
       if (text) this.handleChat(socket, seat, 'canned', text, msg.id)
+      return
+    }
+
+    // Announcements are for everyone in the room, spectators included.
+    if (msg.t === 'announcementAck') {
+      const name = seat === 'spectator' ? (this.spectators.get(socket) ?? '') : (this.seats[seat]?.name ?? '')
+      this.deps.onAnnouncementAck?.(msg.id, name)
       return
     }
 

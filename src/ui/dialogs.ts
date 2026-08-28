@@ -4,9 +4,14 @@ import { verifyCommitment } from '../game/fairness'
 import { COLOR_NAME, PIECE_CHAR } from '../game/constants'
 import { el, formatDuration } from './dom'
 
-/** Wires shared dismissal behavior: .dialog-close buttons and backdrop clicks. */
+/** Wires shared dismissal behavior: .dialog-close buttons and backdrop clicks.
+ *  Dialogs marked data-persistent ignore Esc/backdrop and close only via code. */
 export function setupDialogs(): void {
   for (const dialog of document.querySelectorAll('dialog')) {
+    if (dialog.dataset.persistent === 'true') {
+      dialog.addEventListener('cancel', (event) => event.preventDefault())
+      continue
+    }
     for (const button of dialog.querySelectorAll<HTMLButtonElement>('.dialog-close')) {
       button.addEventListener('click', () => dialog.close())
     }
@@ -14,6 +19,19 @@ export function setupDialogs(): void {
       if (event.target === dialog) dialog.close()
     })
   }
+}
+
+/** Opens the admin announcement dialog. Dismissal is click-only (no Esc or
+ *  backdrop) and `onAck` fires when the reader confirms. */
+export function showAnnouncementDialog(text: string, at: number, onAck: () => void): void {
+  const dialog = el<HTMLDialogElement>('dialog-announcement')
+  el('announcement-text').textContent = text
+  el('announcement-time').textContent = `發送於 ${new Date(at).toLocaleString('zh-TW', { hour12: false })}`
+  el<HTMLButtonElement>('btn-announcement-ack').onclick = () => {
+    if (dialog.open) dialog.close()
+    onAck()
+  }
+  if (!dialog.open) dialog.showModal()
 }
 
 export function openDialog(id: string): HTMLDialogElement {

@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@google-cloud/firestore": "^7.11.0",
+    "chart.js": "^4.5.1",
     "express": "^4.21.2",
     "ws": "^8.18.0"
   },

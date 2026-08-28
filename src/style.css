@@ -1444,6 +1444,21 @@ body.mode-online #hud-bottom { padding-right: 84px; }
   scroll-snap-type: x proximity;
 }
 #chat-canned::-webkit-scrollbar { display: none; }
+/* Announcement dialog: click-to-dismiss only */
+.announcement-text {
+  font-size: 16px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 10px 0 6px;
+}
+
+.announcement-time {
+  font-size: 12px;
+  color: #9c8f7c;
+  margin: 0 0 4px;
+}
+
 .canned-chip {
   flex: none;
   scroll-snap-align: start;

@@ -417,6 +417,18 @@
     </div>
   </dialog>
 
+  <!-- ANNOUNCEMENT DIALOG: persistent — dismissible only via the ack button -->
+  <dialog id="dialog-announcement" data-persistent="true" aria-label="伺服器公告">
+    <div class="dialog-body">
+      <h2 class="dialog-title">📢 伺服器公告</h2>
+      <p id="announcement-text" class="announcement-text"></p>
+      <p id="announcement-time" class="announcement-time"></p>
+      <div class="dialog-actions">
+        <button id="btn-announcement-ack" class="btn btn-primary" type="button" aria-label="我知道了">我知道了</button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- GAME OVER DIALOG -->
   <dialog id="dialog-gameover" aria-label="對局結束">
     <div class="dialog-body">

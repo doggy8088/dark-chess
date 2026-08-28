@@ -56,6 +56,9 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
       return { t: 'rematch' }
     case 'rematchResponse':
       return { t: 'rematchResponse', accept: msg.accept === true }
+    case 'announcementAck':
+      if (typeof msg.id !== 'string' || !msg.id) return null
+      return { t: 'announcementAck', id: msg.id.slice(0, 64) }
     default:
       return null
   }

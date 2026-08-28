@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>管理後台 · 台灣暗棋</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23e8d5b0'/%3E%3Ccircle cx='32' cy='32' r='26' fill='none' stroke='%23a33327' stroke-width='3'/%3E%3Ctext x='32' y='44' font-size='32' text-anchor='middle' fill='%23a33327' font-family='serif' font-weight='bold'%3E暗%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+  <div id="admin-app">
+    <header class="admin-header">
+      <div>
+        <h1>台灣暗棋 · 管理後台</h1>
+        <p class="admin-subtitle" id="admin-version"></p>
+      </div>
+      <div class="admin-user">
+        <span id="admin-email"></span>
+        <button id="btn-admin-logout" class="admin-btn ghost" type="button" hidden>登出</button>
+      </div>
+    </header>
+
+    <main class="admin-main">
+      <!-- LOGIN -->
+      <section id="admin-login" class="admin-card login-card" hidden>
+        <h2>以 Google 帳號登入</h2>
+        <p class="admin-hint">僅限管理員信箱（預設 doggy.huang@gmail.com）。</p>
+        <p id="admin-login-hint" class="admin-hint warn" hidden></p>
+        <div id="google-signin"></div>
+      </section>
+
+      <!-- DASHBOARD -->
+      <section id="admin-dashboard" hidden>
+        <div class="admin-live-grid" id="admin-live-cards"></div>
+
+        <section class="admin-card">
+          <h2>📢 伺服器公告</h2>
+          <p class="admin-hint">發送後會即時推播到所有房間與大廳；玩家必須點擊「我知道了」才會關閉，下方可追蹤已讀人數。</p>
+          <textarea id="announcement-input" maxlength="500" rows="3" placeholder="輸入公告內容（最多 500 字）…"></textarea>
+          <div class="admin-actions-row">
+            <span id="announce-feedback" class="admin-hint"></span>
+            <button id="btn-announce-send" class="admin-btn primary" type="button">發送公告</button>
+          </div>
+          <ul id="announcement-list" class="admin-announcement-list"></ul>
+        </section>
+
+        <section class="admin-card">
+          <h2>每分鐘負載</h2>
+          <div class="admin-controls">
+            <label>範圍
+              <select id="minute-range">
+                <option value="60">最近 60 分鐘</option>
+                <option value="360">最近 6 小時</option>
+                <option value="1440">最近 24 小時</option>
+                <option value="4320">最近 72 小時</option>
+              </select>
+            </label>
+            <button id="btn-refresh-minute" class="admin-btn ghost" type="button">重新整理</button>
+          </div>
+          <canvas id="chart-minute" height="120"></canvas>
+        </section>
+
+        <section class="admin-card">
+          <h2>每小時報表</h2>
+          <div class="admin-controls">
+            <label>日期 <input type="date" id="hour-date" /></label>
+            <button class="admin-btn ghost" type="button" data-hour-shift="0">今天</button>
+            <button class="admin-btn ghost" type="button" data-hour-shift="-1">昨天</button>
+            <button class="admin-btn ghost" type="button" data-hour-shift="-7">上週</button>
+          </div>
+          <canvas id="chart-hour" height="120"></canvas>
+        </section>
+
+        <section class="admin-card">
+          <h2>每日報表</h2>
+          <div class="admin-controls">
+            <label>範圍
+              <select id="day-range">
+                <option value="7">最近 7 天</option>
+                <option value="14">最近 14 天</option>
+                <option value="30">最近 30 天</option>
+                <option value="90">最近 90 天</option>
+              </select>
+            </label>
+          </div>
+          <canvas id="chart-day" height="120"></canvas>
+        </section>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="/src/admin/admin.ts"></script>
+</body>
+</html>

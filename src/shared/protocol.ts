@@ -90,6 +90,13 @@ export interface PresenceInfo {
 
 export type RoomStatus = 'waiting' | 'playing' | 'finished'
 
+/** Server-wide announcement pushed by the admin console. Public info only. */
+export interface AnnouncementInfo {
+  id: string
+  text: string
+  at: number
+}
+
 export interface FairnessReveal {
   /** Piece identities ("red-cannon"…) in board-index order at game start. */
   layout: string[]
@@ -112,6 +119,7 @@ export type ClientMessage =
   | { t: 'resign' }
   | { t: 'rematch' }
   | { t: 'rematchResponse'; accept: boolean }
+  | { t: 'announcementAck'; id: string }
 
 // ---------------------------------------------------------------- server → client
 
@@ -132,7 +140,10 @@ export type ServerMessage =
       presence: PresenceInfo
       fairnessHash: string
       gameOver: { reason: GameOverReason; winnerIndex: 0 | 1 | null; fairnessReveal: FairnessReveal } | null
+      /** Announcement still on display when the client joined — must be acknowledged. */
+      announcement?: AnnouncementInfo | null
     }
+  | { t: 'announcement'; id: string; text: string; at: number }
   | { t: 'state'; state: RedactedStateDTO; deadline: TurnDeadline | null }
   | {
       t: 'actionApplied'

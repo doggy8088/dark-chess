@@ -1,0 +1,134 @@
+:root {
+  --admin-bg: #1c1512;
+  --admin-card: #262019;
+  --admin-border: rgba(212, 166, 88, 0.25);
+  --admin-text: #e8d5b0;
+  --admin-muted: #9c8f7c;
+  --admin-accent: #d4a658;
+  --admin-red: #e05c4a;
+  --admin-green: #7fb069;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: radial-gradient(1200px 600px at 20% -10%, #2a2019 0%, var(--admin-bg) 55%);
+  color: var(--admin-text);
+  font-family: 'PingFang TC', 'Microsoft JhengHei', system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--admin-border);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.admin-header h1 { font-size: 20px; margin: 0; letter-spacing: 0.04em; }
+
+.admin-subtitle { margin: 2px 0 0; font-size: 12px; color: var(--admin-muted); }
+
+.admin-user { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--admin-accent); }
+
+.admin-main { padding: 20px 24px 48px; max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+.admin-card {
+  background: var(--admin-card);
+  border: 1px solid var(--admin-border);
+  border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+.admin-card h2 { margin: 0 0 10px; font-size: 16px; color: var(--admin-accent); }
+
+.admin-hint { font-size: 12px; color: var(--admin-muted); margin: 4px 0; }
+.admin-hint.warn { color: #f0b453; }
+
+.login-card { max-width: 420px; margin: 40px auto; text-align: center; }
+.login-card h2 { margin-bottom: 4px; }
+#google-signin { display: flex; justify-content: center; min-height: 44px; margin-top: 14px; }
+
+.admin-live-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.admin-live-card {
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(212, 166, 88, 0.18);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.admin-live-num { font-size: 26px; font-weight: 700; color: var(--admin-text); line-height: 1.2; }
+.admin-live-label { font-size: 12px; color: var(--admin-muted); margin-top: 2px; }
+
+.admin-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; font-size: 13px; }
+.admin-controls label { display: inline-flex; align-items: center; gap: 6px; color: var(--admin-muted); }
+
+.admin-controls select,
+.admin-controls input,
+#announcement-input {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  color: var(--admin-text);
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+#announcement-input { width: 100%; resize: vertical; margin-top: 6px; }
+
+.admin-actions-row { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+
+.admin-btn {
+  border-radius: 8px;
+  border: 1px solid var(--admin-border);
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--admin-text);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.admin-btn:hover { border-color: var(--admin-accent); }
+.admin-btn:disabled { opacity: 0.5; cursor: default; }
+
+.admin-btn.primary {
+  background: linear-gradient(160deg, #a33327, #7d2418);
+  border-color: rgba(232, 213, 176, 0.3);
+  color: #f5e9d3;
+  font-weight: 600;
+}
+
+.admin-btn.ghost { color: var(--admin-muted); }
+
+.admin-announcement-list { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+
+.admin-announcement-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(212, 166, 88, 0.14);
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.admin-announcement-text { margin: 0; white-space: pre-wrap; word-break: break-word; }
+
+.admin-announcement-meta { margin: 2px 0 0; font-size: 11px; color: var(--admin-muted); }
+
+.admin-announcement-reads { align-self: center; font-size: 12px; color: var(--admin-accent); white-space: nowrap; }
+
+canvas { max-width: 100%; }
