@@ -57,6 +57,9 @@ export class App {
   private online: OnlineSession | null = null
   private lobbySocket: ReconnectingSocket | null = null
   private prevLiveGames = new Map<string, { turnNumber: number; capturedRed: number; capturedBlack: number }>()
+  /** 即時戰況「只看交戰中」篩選（隱藏保留中的已結束房間）。 */
+  private warLiveOnly = false
+  private lastLiveGames: GameSummary[] = []
   private pendingJoinRoomId: string | null = null
   private pendingJoinIntent: 'play' | 'watch' = 'play'
   private myOnlineName = ''
@@ -417,6 +420,7 @@ export class App {
   // -------------------------------------------------------------- online UI
 
   private wireOnlineUi(): void {
+    this.wireWarLiveOnlyToggle()
     el('btn-home-online').addEventListener('click', () => {
       this.lobbyControls.prefillName()
       showScreen('screen-online-setup')
@@ -604,7 +608,30 @@ export class App {
     }
   }
 
+  /** 即時戰況「只看交戰中」開關：隱藏保留中的已結束房間（偏好存 localStorage）。 */
+  private wireWarLiveOnlyToggle(): void {
+    const toggle = el<HTMLButtonElement>('btn-war-live-only')
+    try {
+      this.warLiveOnly = JSON.parse(localStorage.getItem('warRoomLiveOnly') ?? 'false') === true
+    } catch {
+      this.warLiveOnly = false
+    }
+    const sync = (): void => toggle.setAttribute('aria-pressed', String(this.warLiveOnly))
+    sync()
+    toggle.addEventListener('click', () => {
+      this.warLiveOnly = !this.warLiveOnly
+      sync()
+      try {
+        localStorage.setItem('warRoomLiveOnly', JSON.stringify(this.warLiveOnly))
+      } catch {
+        // Storage unavailable — the toggle still works for this session.
+      }
+      this.renderLiveGames(this.lastLiveGames)
+    })
+  }
+
   private renderLiveGames(games: GameSummary[]): void {
+    this.lastLiveGames = games
     const block = el('live-games')
     const list = el<HTMLUListElement>('live-games-list')
     const statGames = document.getElementById('war-stat-games')
@@ -630,7 +657,16 @@ export class App {
 
     list.textContent = ''
 
-    for (const game of games) {
+    // 「只看交戰中」：隱藏保留中的已結束房間（統計數字維持全伺服器計算）。
+    const visible = this.warLiveOnly ? games.filter((g) => g.status !== 'finished') : games
+    if (visible.length === 0) {
+      const empty = document.createElement('li')
+      empty.className = 'war-empty'
+      empty.textContent = '目前沒有交戰中的對局'
+      list.append(empty)
+    }
+
+    for (const game of visible) {
       const remainingRed = 16 - game.capturedRed
       const remainingBlack = 16 - game.capturedBlack
       const totalCaptures = game.capturedRed + game.capturedBlack

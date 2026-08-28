@@ -331,6 +331,29 @@ button { font: inherit; color: inherit; }
   color: #fca5a5;
 }
 
+/* 只看交戰中 toggle */
+.war-live-toggle {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 2px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #d1c7b7;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.war-live-toggle:hover { border-color: rgba(212, 166, 88, 0.5); }
+
+.war-live-toggle[aria-pressed='true'] {
+  background: rgba(212, 166, 88, 0.18);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* Global War Stats Summary */
 .war-room-stats-summary {
   display: flex;
@@ -403,6 +426,16 @@ button { font: inherit; color: inherit; }
 
 .war-card.war-card-updated {
   animation: war-card-flash 0.85s ease-out;
+}
+
+/* 篩選後沒有任何卡片時的提示列 */
+.war-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: #9c8f7c;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  padding: 18px 0 6px;
 }
 
 @keyframes war-card-flash {
