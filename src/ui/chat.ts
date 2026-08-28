@@ -11,6 +11,8 @@ const CANNED_SHUFFLE_INTERVAL_MS = 15_000
 export interface ChatPanelCallbacks {
   onSend(text: string): void
   onCanned(id: string): void
+  /** Spectator claims an abandoned seat (takeover). */
+  onTakeover(): void
   /** Seat name lookup for message attribution. */
   nameFor(seat: 0 | 1): string
 }
@@ -265,6 +267,7 @@ export class ChatPanel {
       color: 'red' | 'black' | null
       connected: boolean
       graceDeadlineAt?: number
+      awaitingTakeover?: boolean
     }[] = [
       {
         seat: 0,
@@ -272,6 +275,7 @@ export class ChatPanel {
         color: color0,
         connected: presence.seats[0].connected,
         graceDeadlineAt: presence.seats[0].graceDeadlineAt,
+        awaitingTakeover: presence.seats[0].awaitingTakeover,
       },
       {
         seat: 1,
@@ -279,6 +283,7 @@ export class ChatPanel {
         color: color1,
         connected: presence.seats[1].connected,
         graceDeadlineAt: presence.seats[1].graceDeadlineAt,
+        awaitingTakeover: presence.seats[1].awaitingTakeover,
       },
     ]
 
@@ -331,6 +336,18 @@ export class ChatPanel {
       if (s.name === '等待中') {
         status.className = 'member-status waiting'
         status.append(dot, document.createTextNode('等待加入'))
+      } else if (s.awaitingTakeover) {
+        status.className = 'member-status takeover'
+        status.append(dot, document.createTextNode('等待接手'))
+        if (this.mySeat === null) {
+          const take = document.createElement('button')
+          take.type = 'button'
+          take.className = 'btn btn-primary btn-small member-takeover-btn'
+          take.textContent = '接手'
+          take.setAttribute('aria-label', `接手 ${s.name} 的座位繼續對局`)
+          take.addEventListener('click', () => this.callbacks.onTakeover())
+          status.append(take)
+        }
       } else if (s.connected) {
         status.className = 'member-status online'
         status.append(dot, document.createTextNode('連線中'))

@@ -25,6 +25,8 @@ export interface RoomDoc {
   /** Chat tail, JSON-encoded (ChatMessage[]). */
   chatJson: string
   result: { reason: GameOverReason; winnerIndex: 0 | 1 | null } | null
+  /** Active spectator-takeover window for an abandoned seat, if any. */
+  takeover?: { seat: 0 | 1; deadlineAt: number } | null
   /** Epoch ms when the game finished; null while it has not finished yet. */
   finishedAt?: number | null
   createdAt: number

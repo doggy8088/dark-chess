@@ -44,6 +44,10 @@ export interface OnlineSessionCallbacks {
   onRematchStart(state: GameState, hidden: Set<string>): void
   /** Admin announcement requiring acknowledgement. */
   onAnnouncement(announcement: AnnouncementInfo): void
+  /** A seat was abandoned — spectators may take it over until deadlineAt. */
+  onTakeoverOpen(seat: 0 | 1, deadlineAt: number): void
+  /** The abandoned seat has been claimed (or the takeover resolved). */
+  onTakeoverClosed(seat: 0 | 1): void
   /** Transport status for the reconnect overlay. */
   onConnectionChanged(connected: boolean): void
   onError(code: string, message: string): void
@@ -177,6 +181,11 @@ export class OnlineSession {
     this.socket.send({ t: 'announcementAck', id })
   }
 
+  /** Spectator claims the abandoned seat. */
+  sendTakeover(): void {
+    this.socket.send({ t: 'takeoverSeat' })
+  }
+
   // --------------------------------------------------------------- inbound
 
   private route(msg: ServerMessage): void {
@@ -250,6 +259,12 @@ export class OnlineSession {
         break
       case 'announcement':
         this.callbacks.onAnnouncement({ id: msg.id, text: msg.text, at: msg.at })
+        break
+      case 'takeoverOpen':
+        this.callbacks.onTakeoverOpen(msg.seat, msg.deadlineAt)
+        break
+      case 'takeoverClosed':
+        this.callbacks.onTakeoverClosed(msg.seat)
         break
       case 'deadline':
         this.setDeadline(msg.deadline)

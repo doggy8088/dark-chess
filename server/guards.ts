@@ -59,6 +59,8 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
     case 'announcementAck':
       if (typeof msg.id !== 'string' || !msg.id) return null
       return { t: 'announcementAck', id: msg.id.slice(0, 64) }
+    case 'takeoverSeat':
+      return { t: 'takeoverSeat' }
     default:
       return null
   }

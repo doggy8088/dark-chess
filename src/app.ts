@@ -98,6 +98,7 @@ export class App {
     this.chat = new ChatPanel({
       onSend: (text) => this.online?.sendChat(text),
       onCanned: (id) => this.online?.sendCanned(id),
+      onTakeover: () => this.online?.sendTakeover(),
       nameFor: (seat) => this.controller?.state?.players[seat]?.name ?? (seat === 0 ? '玩家一' : '玩家二'),
     })
     this.wireAnnouncementStorage()
@@ -387,6 +388,18 @@ export class App {
     button.addEventListener('click', () => void this.toggleFullscreen())
     document.addEventListener('fullscreenchange', sync)
     sync()
+  }
+
+  /** 棋手離場後座位開放接手：依身分給予不同的提示。 */
+  private handleTakeoverOpen(seat: 0 | 1, deadlineAt: number): void {
+    const minutes = Math.max(1, Math.round((deadlineAt - Date.now()) / 60_000))
+    this.chat.addNotice(`系統：${this.controller?.state?.players[seat]?.name ?? '玩家'} 離開了對局，座位開放接手！`)
+    if (this.online?.seat === 'spectator') {
+      this.hud.showHint(`座位開放接手！開啟「人員」名單點「接手」上場（約 ${minutes} 分鐘內）`)
+      this.chat.show('members')
+    } else {
+      this.hud.showHint(`對手已離開，等待觀戰接手中（約 ${minutes} 分鐘內無人接手即判定你獲勝）`)
+    }
   }
 
   private async toggleFullscreen(): Promise<void> {
@@ -908,6 +921,11 @@ export class App {
         this.beginOnlineGame(state, hidden, { intro: true })
       },
       onAnnouncement: (announcement) => this.showAnnouncement(announcement),
+      onTakeoverOpen: (seat, deadlineAt) => this.handleTakeoverOpen(seat, deadlineAt),
+      onTakeoverClosed: (seat) => {
+        this.chat.addNotice('系統：座位已由新玩家接手，對局繼續！')
+        void seat
+      },
       onConnectionChanged: (connected) => this.setConnectionOverlay(!connected),
       onError: (code, message) => this.handleOnlineError(code, message),
       onYourTurnWhileHidden: () => this.notifyYourTurn(),

@@ -3,6 +3,9 @@ export const PORT = Number(process.env.PORT ?? 8787)
 /** Per-move thinking time. Running out loses the game. */
 export const TURN_MS = Number(process.env.TURN_MS ?? 60_000)
 
+/** When a seat is abandoned (disconnect/timeout), spectators get this long to take over. */
+export const TAKEOVER_WINDOW_MS = 5 * 60 * 1000
+
 /** How long a disconnected player (whose move it is) may take to rejoin. */
 export const GRACE_MS = Number(process.env.GRACE_MS ?? 90_000)
 

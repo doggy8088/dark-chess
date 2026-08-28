@@ -76,6 +76,8 @@ export interface SeatPresence {
   connected: boolean
   /** Set while the seat is disconnected mid-game: forfeit deadline (epoch ms). */
   graceDeadlineAt?: number
+  /** Set while the seat awaits a spectator takeover (玩家接手). */
+  awaitingTakeover?: boolean
 }
 
 export interface SpectatorPresence {
@@ -120,6 +122,7 @@ export type ClientMessage =
   | { t: 'rematch' }
   | { t: 'rematchResponse'; accept: boolean }
   | { t: 'announcementAck'; id: string }
+  | { t: 'takeoverSeat' }
 
 // ---------------------------------------------------------------- server → client
 
@@ -144,6 +147,8 @@ export type ServerMessage =
       announcement?: AnnouncementInfo | null
     }
   | { t: 'announcement'; id: string; text: string; at: number }
+  | { t: 'takeoverOpen'; seat: Seat; deadlineAt: number; serverNow: number }
+  | { t: 'takeoverClosed'; seat: Seat }
   | { t: 'state'; state: RedactedStateDTO; deadline: TurnDeadline | null }
   | {
       t: 'actionApplied'

@@ -29,6 +29,7 @@ import {
   FINISHED_ROOM_TTL_MS,
   GRACE_MS,
   IDLE_ROOM_TTL_MS,
+  TAKEOVER_WINDOW_MS,
   TURN_MS,
 } from './config'
 import { newChatId, newPlayerToken } from './ids'
@@ -86,6 +87,9 @@ export class Room {
   private deadlineAt: number | null = null
   private pausedRemainingMs: number | null = null
   private graceDeadlineAt: number | null = null
+
+  /** Spectator-takeover window for an abandoned seat (game paused meanwhile). */
+  private takeover: { seat: 0 | 1; deadlineAt: number } | null = null
 
   private chat: ChatMessage[] = []
   /** Connected spectators and their display names. */
@@ -152,6 +156,7 @@ export class Room {
     room.deadlineAt = doc.turn.deadlineAt
     room.pausedRemainingMs = doc.turn.pausedRemainingMs
     room.graceDeadlineAt = doc.turn.graceDeadlineAt
+    room.takeover = doc.takeover ?? null
     // Nobody is connected right after a restart, and the outage is not the
     // player's fault: a running turn clock pauses into a fresh grace window
     // (with at least a few seconds left to move), and a pending grace window
@@ -191,6 +196,7 @@ export class Room {
       chatJson: JSON.stringify(this.chat.slice(-CHAT_TAIL_LENGTH)),
       result: this.result,
       finishedAt: this.finishedAt,
+      takeover: this.takeover,
       createdAt: this.createdAt,
       updatedAt: now,
       expireAt: this.status === 'finished' ? now + FINISHED_ROOM_TTL_MS : now + IDLE_ROOM_TTL_MS,
@@ -336,6 +342,12 @@ export class Room {
     if (msg.t === 'announcementAck') {
       const name = seat === 'spectator' ? (this.spectators.get(socket) ?? '') : (this.seats[seat]?.name ?? '')
       this.deps.onAnnouncementAck?.(msg.id, name)
+      return
+    }
+
+    // An abandoned seat may be claimed by any spectator while the window is open.
+    if (msg.t === 'takeoverSeat') {
+      this.takeoverSeat(socket)
       return
     }
 
@@ -536,11 +548,83 @@ export class Room {
   evaluate(): void {
     if (this.status !== 'playing' || !this.seats[1]) return
     const now = this.deps.now()
-    if (this.graceDeadlineAt !== null && now >= this.graceDeadlineAt) {
-      this.finish('forfeit', this.other(this.state.currentPlayerIndex))
-    } else if (this.deadlineAt !== null && now >= this.deadlineAt) {
-      this.finish('timeout', this.other(this.state.currentPlayerIndex))
+    if (this.takeover) {
+      if (now >= this.takeover.deadlineAt) this.finish('forfeit', this.other(this.takeover.seat))
+      return
     }
+    if (this.graceDeadlineAt !== null && now >= this.graceDeadlineAt) {
+      this.startTakeover(this.state.currentPlayerIndex, 'forfeit')
+    } else if (this.deadlineAt !== null && now >= this.deadlineAt) {
+      this.startTakeover(this.state.currentPlayerIndex, 'timeout')
+    }
+  }
+
+  /**
+   * A seat was abandoned (offline past grace, or move timeout). Instead of
+   * force-ending the game, the position stays open: connected spectators get
+   * a window to take the seat over. With nobody watching there is no one to
+   * take over, so the game simply ends as before.
+   */
+  private startTakeover(seat: Seat, reason: GameOverReason): void {
+    if (this.spectators.size === 0) {
+      this.finish(reason, this.other(seat))
+      return
+    }
+    // Preserve a fair clock for the replacement: a fresh full turn.
+    this.pausedRemainingMs = TURN_MS
+    // A connected (timed-out) player loses the seat and joins the audience.
+    const stale = this.seats[seat]?.socket
+    if (stale) {
+      this.spectators.set(stale, this.seats[seat]!.name)
+      this.seats[seat]!.socket = null
+    }
+    // Rotate the token so the previous holder can never reclaim the seat.
+    this.seats[seat]!.token = newPlayerToken()
+    this.graceDeadlineAt = null
+    this.deadlineAt = null
+    this.takeover = { seat, deadlineAt: this.deps.now() + TAKEOVER_WINDOW_MS }
+    this.broadcast({ t: 'takeoverOpen', seat, deadlineAt: this.takeover.deadlineAt, serverNow: this.deps.now() })
+    this.broadcast({ t: 'presence', presence: this.presence() })
+    this.armTimer()
+    this.persist()
+  }
+
+  /** A spectator claims the abandoned seat and the game resumes. */
+  takeoverSeat(socket: ClientSocket): void {
+    if (!this.takeover || this.status !== 'playing') return
+    const name = this.spectators.get(socket)
+    if (name === undefined) return
+    const seat = this.takeover.seat
+    this.spectators.delete(socket)
+    this.limiters.delete(socket)
+    this.seats[seat] = { token: newPlayerToken(), name, socket }
+    this.state.players[seat].name = name
+    this.takeover = null
+    // Resume the preserved clock: the taker continues as the player to move.
+    if (this.pausedRemainingMs !== null) {
+      this.deadlineAt = this.deps.now() + this.pausedRemainingMs
+      this.pausedRemainingMs = null
+    }
+    this.graceDeadlineAt = null
+    this.send(socket, {
+      t: 'joined',
+      roomId: this.roomId,
+      seat,
+      playerToken: this.seats[seat]!.token,
+      roomStatus: this.status,
+      state: redactState(this.state),
+      deadline: this.currentDeadline(),
+      chat: this.chat.slice(-CHAT_TAIL_LENGTH),
+      presence: this.presence(),
+      fairnessHash: this.fairness.hash,
+      gameOver: null,
+      announcement: this.deps.activeAnnouncement?.() ?? null,
+    })
+    this.broadcast({ t: 'takeoverClosed', seat }, socket)
+    this.broadcast({ t: 'presence', presence: this.presence() }, socket)
+    this.armTimer()
+    this.persist()
+    this.deps.onActivity?.()
   }
 
   private armTimer(): void {
@@ -549,7 +633,7 @@ export class Room {
       this.timerHandle = null
     }
     if (this.status !== 'playing') return
-    const next = this.graceDeadlineAt ?? this.deadlineAt
+    const next = this.takeover?.deadlineAt ?? this.graceDeadlineAt ?? this.deadlineAt
     if (next === null) return
     const delay = Math.max(0, next - this.deps.now()) + 20
     this.timerHandle = setTimeout(() => {
@@ -574,6 +658,7 @@ export class Room {
     this.status = 'finished'
     this.result = { reason, winnerIndex }
     this.finishedAt = this.deps.now()
+    this.takeover = null
     if (reason !== 'draw-agreed' && reason !== 'draw' && winnerIndex !== null) {
       this.state.status = 'won'
       this.state.winnerIndex = winnerIndex
@@ -603,6 +688,7 @@ export class Room {
     this.fairness = fairness
     this.result = null
     this.finishedAt = null
+    this.takeover = null
     this.status = 'playing'
     this.startTurnClock()
     this.broadcast({
@@ -631,6 +717,7 @@ export class Room {
           this.status === 'playing' && this.state.currentPlayerIndex === seat && this.graceDeadlineAt !== null && !s?.socket
             ? this.graceDeadlineAt
             : undefined,
+        awaitingTakeover: this.takeover?.seat === seat || undefined,
       }
     }
     const spectatorList: SpectatorPresence[] = Array.from(this.spectators.values()).map((name) => ({ name }))

@@ -1610,6 +1610,8 @@ body.mode-online #hud-bottom { padding-right: 84px; }
 .member-status.online { color: var(--ok); }
 .member-status.offline { color: var(--danger); }
 .member-status.waiting { color: var(--warn); }
+.member-status.takeover { color: var(--warn); flex-wrap: wrap; gap: 6px; }
+.member-takeover-btn { padding: 3px 10px; font-size: 12px; line-height: 1.4; }
 .status-dot {
   width: 6px; height: 6px;
   border-radius: 50%;
