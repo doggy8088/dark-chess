@@ -23,6 +23,7 @@ import {
 } from './auth'
 import { AnnouncementBoard, type AnnouncementPersistence } from './announcements'
 import { Metrics, type MetricsPersistence } from './metrics'
+import { IpMonitor, isIpBlockDuration, looksLikeIp, IP_BLOCK_DURATIONS, type IpMonitorPersistence } from './ip-monitor'
 import type { Room } from './room'
 import { RoomManager } from './rooms'
 import { InMemoryStore, type RoomStore } from './store'
@@ -41,7 +42,7 @@ async function makeStore(): Promise<RoomStore> {
 
 const adminEmails = adminEmailsFromEnv()
 const adminSessionSecret = process.env.ADMIN_SESSION_SECRET || randomSecret()
-let adminStore: (AnnouncementPersistence & MetricsPersistence) | undefined
+let adminStore: (AnnouncementPersistence & MetricsPersistence & IpMonitorPersistence) | undefined
 if (FIRESTORE_ENABLED) {
   const { FirestoreAdminStore } = await import('./firestore-admin')
   adminStore = new FirestoreAdminStore()
@@ -49,6 +50,10 @@ if (FIRESTORE_ENABLED) {
 
 const announcements = new AnnouncementBoard(adminStore as AnnouncementPersistence | undefined)
 await announcements.init()
+
+const ipMonitor = new IpMonitor(adminStore as IpMonitorPersistence | undefined)
+await ipMonitor.init()
+ipMonitor.start()
 
 const rooms = new RoomManager(await makeStore(), Date.now, {
   onAnnouncementAck: (id, name) => announcements.ack(id, name),
@@ -70,9 +75,26 @@ const metrics = new Metrics({
 metrics.start()
 
 const app = express()
+// Cloud Run terminates TLS at the Google Front End; the real client IP rides
+// in X-Forwarded-For. trust proxy makes req.ip resolve to it.
+app.set('trust proxy', true)
 app.use(express.json({ limit: '4kb' }))
-app.use((_req, _res, next) => {
+
+function clientIp(req: express.Request): string {
+  const forwarded = req.headers['x-forwarded-for']
+  const first = typeof forwarded === 'string' ? forwarded.split(',')[0]?.trim() : Array.isArray(forwarded) ? forwarded[0]?.trim() : undefined
+  return first || req.ip || req.socket.remoteAddress || 'unknown'
+}
+
+app.use((req, res, next) => {
   metrics.recordHttp()
+  const ip = clientIp(req)
+  ipMonitor.recordHttp(ip)
+  // 封鎖不影響後台自身與健康檢查，管理員不會把自己鎖在外面。
+  if (!/^\/(admin|api\/admin|healthz|api\/health)/.test(req.path) && ipMonitor.isBlocked(ip)) {
+    res.status(403).json({ error: 'ip-blocked', message: '您的網路位置已被暫時封鎖。若有疑問請與管理員聯絡。' })
+    return
+  }
   next()
 })
 
@@ -199,6 +221,58 @@ app.get('/api/admin/metrics/series', requireAdmin, async (req, res) => {
   }
 })
 
+// ------------------------------------------------------------ IP 監控與封鎖
+
+const IP_STATS_RANGES: Record<string, number> = {
+  '1h': 60 * 60_000,
+  '24h': 24 * 60 * 60_000,
+  '7d': 7 * 24 * 60 * 60_000,
+}
+
+app.get('/api/admin/ip-stats', requireAdmin, (req, res) => {
+  const range = typeof req.query.range === 'string' && req.query.range in IP_STATS_RANGES ? req.query.range : '24h'
+  const fallback = IP_STATS_RANGES['24h']!
+  const window = IP_STATS_RANGES[range] ?? fallback
+  res.json({ range, points: ipMonitor.top(window) })
+})
+
+app.get('/api/admin/ip-alerts', requireAdmin, (_req, res) => {
+  res.json({ alerts: ipMonitor.listAlerts(), thresholds: ipMonitor.thresholds() })
+})
+
+app.get('/api/admin/ip-blocks', requireAdmin, (_req, res) => {
+  res.json({ blocks: ipMonitor.listBlocks() })
+})
+
+app.post('/api/admin/ip-blocks', requireAdmin, (req, res) => {
+  const ip = typeof req.body?.ip === 'string' ? req.body.ip.trim() : ''
+  const duration = req.body?.duration
+  if (!ip || ip.length > 45 || !looksLikeIp(ip)) {
+    res.status(400).json({ error: 'bad-ip', message: 'IP 格式不正確（需為 IPv4 或 IPv6）' })
+    return
+  }
+  if (!isIpBlockDuration(duration)) {
+    res.status(400).json({
+      error: 'bad-duration',
+      message: `時長必須是：${Object.keys(IP_BLOCK_DURATIONS).join(' / ')} / permanent`,
+    })
+    return
+  }
+  const email = res.locals.adminEmail as string
+  const block = ipMonitor.block(ip, duration, email)
+  // 立即中斷該 IP 的既有連線（升級時的檢查只擋新連線）。
+  for (const client of wss.clients) {
+    if (wsIps.get(client) === ip) client.close(4003, 'ip-blocked')
+  }
+  res.json({ ok: true, block })
+})
+
+app.delete('/api/admin/ip-blocks/:ip', requireAdmin, (req, res) => {
+  const ip = req.params.ip ?? ''
+  const removed = ipMonitor.unblock(ip)
+  res.json({ ok: true, removed })
+})
+
 // Admin console shell (login happens client-side via Google Identity Services).
 app.get('/admin', (_req, res) => {
   res.sendFile(path.join(distDir, 'admin.html'))
@@ -242,12 +316,26 @@ server.on('upgrade', (request, socket, head) => {
     socket.destroy()
     return
   }
+  const forwarded = request.headers['x-forwarded-for']
+  const ip =
+    (typeof forwarded === 'string' ? forwarded.split(',')[0]?.trim() : undefined) ??
+    request.socket.remoteAddress ??
+    'unknown'
+  // 封鎖中的 IP：直接拒絕 WebSocket 升級。
+  if (ipMonitor.isBlocked(ip)) {
+    socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
+    socket.destroy()
+    return
+  }
   wss.handleUpgrade(request, socket, head, (ws) => {
+    wsIps.set(ws, ip)
     wss.emit('connection', ws, request)
   })
 })
 
 const lobbySockets = new Set<WebSocket>()
+/** 每條 WS 連線的用戶端 IP（升級時記錄），封鎖時用來踢線。 */
+const wsIps = new WeakMap<WebSocket, string>()
 let broadcastTimer: NodeJS.Timeout | null = null
 
 async function broadcastLobby(): Promise<void> {
@@ -279,8 +367,11 @@ rooms.subscribe(() => {
 
 wss.on('connection', (ws: WebSocket) => {
   let room: Room | null = null
+  const ip = wsIps.get(ws) ?? 'unknown'
+  ipMonitor.recordWsConnect(ip)
 
   ws.on('message', (raw) => {
+    ipMonitor.recordWsMessage(ip)
     const msg = parseClientMessage(typeof raw === 'string' ? raw : raw.toString())
     if (!msg) {
       ws.send(JSON.stringify({ t: 'error', code: 'bad-message', message: '無法解析的訊息' }))
@@ -334,6 +425,7 @@ wss.on('connection', (ws: WebSocket) => {
     lobbySockets.delete(ws)
     room?.disconnect(ws)
     room = null
+    ipMonitor.recordWsDisconnect(ip)
   })
   ws.on('error', () => {
     // close follows; nothing to do here.

@@ -165,6 +165,7 @@ async function refreshAll(): Promise<void> {
     refreshMinuteChart(),
     refreshHourChart(),
     refreshDayChart(),
+    refreshIpPanel(),
   ])
 }
 
@@ -493,6 +494,204 @@ async function refreshDayChart(): Promise<void> {
   ])
 }
 
+// ---------------------------------------------------------------- IP 監控
+
+interface IpTopRow {
+  ip: string
+  http: number
+  wsMsg: number
+  connEvents: number
+  concurrent: number
+  firstSeen: number
+  lastSeen: number
+  blocked: boolean
+  blockExpiresAt: number | null
+}
+
+interface IpAlertView {
+  id: string
+  ip: string
+  type: string
+  detail: string
+  at: number
+}
+
+interface IpBlockView {
+  ip: string
+  blockedAt: number
+  expiresAt: number | null
+  blockedBy: string
+}
+
+const IP_ALERT_TYPE_TEXT: Record<string, string> = {
+  'http-flood': 'HTTP 洪水',
+  'ws-flood': 'WS 訊息洪水',
+  'conn-storm': '連線風暴',
+  'http-hourly': 'HTTP 時流量異常',
+}
+
+function formatAgo(at: number): string {
+  const diff = Math.max(0, Date.now() - at)
+  if (diff < 60_000) return '剛剛'
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} 分鐘前`
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} 小時前`
+  return `${Math.floor(diff / 86_400_000)} 天前`
+}
+
+function formatRemaining(expiresAt: number | null): string {
+  if (expiresAt === null) return '永久'
+  const remaining = expiresAt - Date.now()
+  if (remaining <= 0) return '即將解除'
+  if (remaining < 3_600_000) return `${Math.ceil(remaining / 60_000)} 分鐘後解除`
+  if (remaining < 86_400_000) return `${Math.ceil(remaining / 3_600_000)} 小時後解除`
+  return `${Math.ceil(remaining / 86_400_000)} 天後解除`
+}
+
+function selectedBlockDuration(): string {
+  return el<HTMLSelectElement>('ip-block-duration').value
+}
+
+async function blockIp(ip: string): Promise<void> {
+  const duration = selectedBlockDuration()
+  await request('/api/admin/ip-blocks', { method: 'POST', body: JSON.stringify({ ip, duration }) })
+  ipFeedback(`已封鎖 ${ip}（${duration === 'permanent' ? '永久' : duration}）`)
+  await refreshIpPanel()
+}
+
+async function unblockIp(ip: string): Promise<void> {
+  await request(`/api/admin/ip-blocks/${encodeURIComponent(ip)}`, { method: 'DELETE' })
+  ipFeedback(`已解除封鎖：${ip}`)
+  await refreshIpPanel()
+}
+
+function ipFeedback(text: string): void {
+  const feedback = el('ip-feedback')
+  feedback.textContent = text
+  window.setTimeout(() => {
+    feedback.textContent = ''
+  }, 4000)
+}
+
+async function refreshIpPanel(): Promise<void> {
+  const [stats, alerts, blocks] = await Promise.all([
+    request<{ points: IpTopRow[]; range: string }>('/api/admin/ip-stats?range=' + encodeURIComponent(el<HTMLSelectElement>('ip-range').value)),
+    request<{ alerts: IpAlertView[]; thresholds: Record<string, number> }>('/api/admin/ip-alerts'),
+    request<{ blocks: IpBlockView[] }>('/api/admin/ip-blocks'),
+  ])
+
+  el('ip-thresholds').textContent =
+    `異常閥值：單一 IP HTTP > ${alerts.thresholds.httpPerMin} 次/分、WS 訊息 > ${alerts.thresholds.wsPerMin} 則/分、` +
+    `WS 連線 > ${alerts.thresholds.connPerMin} 條/分、HTTP > ${alerts.thresholds.httpPerHour} 次/時 · 流量歷史保留 ${alerts.thresholds.retentionDays} 天`
+
+  const body = el<HTMLTableSectionElement>('ip-top-body')
+  body.textContent = ''
+  if (stats.points.length === 0) {
+    const row = body.insertRow()
+    const cell = row.insertCell()
+    cell.colSpan = 9
+    cell.textContent = '這段時間內沒有流量紀錄'
+    cell.className = 'admin-empty'
+  }
+  stats.points.forEach((row, index) => {
+    const tr = body.insertRow()
+    if (row.blocked) tr.className = 'blocked-row'
+    const cells = [
+      String(index + 1),
+      row.ip,
+      String(row.http),
+      String(row.wsMsg),
+      String(row.connEvents),
+      String(row.concurrent),
+      formatAgo(row.lastSeen),
+    ]
+    for (const value of cells) {
+      const cell = tr.insertCell()
+      cell.textContent = value
+      if (value === row.ip) cell.className = 'mono'
+    }
+    const statusCell = tr.insertCell()
+    const pill = document.createElement('span')
+    pill.className = `ip-status-pill ${row.blocked ? 'blocked' : 'ok'}`
+    pill.textContent = row.blocked ? `封鎖中（${formatRemaining(row.blockExpiresAt)}）` : '正常'
+    statusCell.append(pill)
+
+    const actionCell = tr.insertCell()
+    const action = document.createElement('button')
+    action.type = 'button'
+    action.className = `admin-btn ${row.blocked ? 'ghost' : 'primary'}`
+    action.style.padding = '3px 10px'
+    action.style.fontSize = '12px'
+    action.textContent = row.blocked ? '解封' : '封鎖'
+    action.addEventListener('click', () => {
+      action.disabled = true
+      void (row.blocked ? unblockIp(row.ip) : blockIp(row.ip)).finally(() => {
+        action.disabled = false
+      })
+    })
+    actionCell.append(action)
+  })
+
+  const alertsList = el('ip-alerts-list')
+  alertsList.textContent = ''
+  if (alerts.alerts.length === 0) {
+    const empty = document.createElement('li')
+    empty.className = 'admin-empty'
+    empty.textContent = '目前沒有異常警示 — 一切平靜 ✨'
+    alertsList.append(empty)
+  }
+  for (const alert of alerts.alerts.slice(0, 20)) {
+    const li = document.createElement('li')
+    li.className = 'admin-announcement-item ip-alert-item'
+    const body = document.createElement('div')
+    const text = document.createElement('p')
+    text.className = 'admin-announcement-text'
+    const type = document.createElement('span')
+    type.className = 'ip-alert-type'
+    type.textContent = IP_ALERT_TYPE_TEXT[alert.type] ?? alert.type
+    text.append(type, document.createTextNode(alert.detail))
+    const meta = document.createElement('p')
+    meta.className = 'admin-announcement-meta'
+    meta.textContent = `${alert.ip} · ${new Date(alert.at).toLocaleString('zh-TW', { hour12: false })}`
+    body.append(text, meta)
+    li.append(body)
+    alertsList.append(li)
+  }
+
+  const blocksList = el('ip-blocks-list')
+  blocksList.textContent = ''
+  if (blocks.blocks.length === 0) {
+    const empty = document.createElement('li')
+    empty.className = 'admin-empty'
+    empty.textContent = '目前沒有封鎖任何 IP'
+    blocksList.append(empty)
+  }
+  for (const block of blocks.blocks) {
+    const li = document.createElement('li')
+    li.className = 'admin-announcement-item ip-block-item'
+    const body = document.createElement('div')
+    const text = document.createElement('p')
+    text.className = 'admin-announcement-text'
+    text.textContent = block.ip
+    const meta = document.createElement('p')
+    meta.className = 'admin-announcement-meta'
+    meta.textContent = `封鎖於 ${new Date(block.blockedAt).toLocaleString('zh-TW', { hour12: false })} · ${formatRemaining(block.expiresAt)} · 由 ${block.blockedBy || '管理員'} 設定`
+    body.append(text, meta)
+    const action = document.createElement('button')
+    action.type = 'button'
+    action.className = 'admin-btn ghost'
+    action.style.fontSize = '12px'
+    action.textContent = '解封'
+    action.addEventListener('click', () => {
+      action.disabled = true
+      void unblockIp(block.ip).finally(() => {
+        action.disabled = false
+      })
+    })
+    li.append(body, action)
+    blocksList.append(li)
+  }
+}
+
 // -------------------------------------------------------------------- boot
 
 async function boot(): Promise<void> {
@@ -509,6 +708,20 @@ async function boot(): Promise<void> {
   el('btn-refresh-minute').addEventListener('click', () => void refreshMinuteChart())
   el('minute-range').addEventListener('change', () => void refreshMinuteChart())
   el('day-range').addEventListener('change', () => void refreshDayChart())
+  el('btn-ip-refresh').addEventListener('click', () => void refreshIpPanel())
+  el('ip-range').addEventListener('change', () => void refreshIpPanel())
+  el('btn-ip-block-manual').addEventListener('click', () => {
+    const input = el<HTMLInputElement>('ip-manual-input')
+    const ip = input.value.trim()
+    if (!ip) {
+      ipFeedback('請先輸入 IP 位址')
+      return
+    }
+    input.value = ''
+    void blockIp(ip).catch((error: unknown) => {
+      ipFeedback(error instanceof Error ? error.message : String(error))
+    })
+  })
   el<HTMLInputElement>('hour-date').value = taipeiDateKey()
   el<HTMLInputElement>('hour-date').addEventListener('change', () => void refreshHourChart())
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-hour-shift]')) {

@@ -180,6 +180,50 @@ body {
 
 canvas { max-width: 100%; }
 
+/* IP 監控表格 */
+.admin-table-wrap { overflow-x: auto; }
+
+.admin-ip-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.admin-ip-table th,
+.admin-ip-table td {
+  padding: 7px 10px;
+  text-align: left;
+  border-bottom: 1px solid rgba(212, 166, 88, 0.12);
+  white-space: nowrap;
+}
+
+.admin-ip-table th { color: var(--admin-muted); font-weight: 600; font-size: 12px; }
+.admin-ip-table td.mono { font-family: ui-monospace, Menlo, monospace; letter-spacing: 0.02em; }
+.admin-ip-table tr.blocked-row td { background: rgba(224, 92, 74, 0.08); }
+
+.ip-status-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.ip-status-pill.ok { background: rgba(127, 176, 105, 0.15); color: var(--admin-green); }
+.ip-status-pill.blocked { background: rgba(224, 92, 74, 0.18); color: #f3a093; }
+
+.ip-sub-heading { margin: 18px 0 8px; font-size: 14px; color: var(--admin-text); }
+
+.ip-alert-item { border-left: 3px solid var(--admin-red); }
+.ip-alert-type {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--admin-red);
+  margin-right: 8px;
+}
+
+.ip-block-item { border-left: 3px solid var(--admin-accent); }
+
+.admin-empty { color: var(--admin-muted); font-size: 12.5px; padding: 6px 0; list-style: none; }
+
 .admin-footer {
   text-align: center;
   padding: 8px 24px 28px;
