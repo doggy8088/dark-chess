@@ -6,6 +6,7 @@ import { WebSocketServer, type WebSocket } from 'ws'
 import { FIRESTORE_ENABLED, PORT } from './config'
 import { parseClientMessage } from './guards'
 import { isRoomId } from './ids'
+import { randomFunName } from '../src/shared/fun-names'
 import type { Room } from './room'
 import { RoomManager } from './rooms'
 import { InMemoryStore, type RoomStore } from './store'
@@ -48,7 +49,7 @@ app.get('/api/games', async (_req, res) => {
 app.post('/api/rooms', async (req, res) => {
   try {
     const rawName = typeof req.body?.name === 'string' ? (req.body.name as string) : ''
-    const name = rawName.trim().slice(0, 12) || '玩家一'
+    const name = rawName.trim().slice(0, 12) || randomFunName()
     const room = await rooms.create(name)
     res.json({ roomId: room.roomId, playerToken: room.seats[0].token })
   } catch (error) {

@@ -31,6 +31,7 @@ import {
   TURN_MS,
 } from './config'
 import { newChatId, newPlayerToken } from './ids'
+import { randomFunName } from '../src/shared/fun-names'
 import { redactState } from './redact'
 import { parseChat, type RoomDoc, type RoomStore } from './store'
 
@@ -262,7 +263,7 @@ export class Room {
     }
     if (!this.seats[1] && !spectate) {
       const trimmed = (name ?? '').trim().slice(0, 12)
-      const seatName = trimmed || '玩家二'
+      const seatName = trimmed || randomFunName(this.seats[0]?.name)
       this.seats[1] = { token: newPlayerToken(), name: seatName, socket }
       this.state.players[1].name = seatName
       if (this.status === 'waiting') {
@@ -271,7 +272,7 @@ export class Room {
       }
       return 1
     }
-    this.spectators.set(socket, (name ?? '').trim().slice(0, 12) || '觀眾')
+    this.spectators.set(socket, (name ?? '').trim().slice(0, 12) || randomFunName())
     return 'spectator'
   }
 

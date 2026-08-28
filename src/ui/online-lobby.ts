@@ -1,5 +1,6 @@
 import { el } from './dom'
 import { loadSettings } from '../persistence/storage'
+import { resolveNickname } from '../shared/fun-names'
 
 export interface OnlineLobbyCallbacks {
   onCreate(name: string): void
@@ -18,7 +19,7 @@ export function setupOnlineLobby(callbacks: OnlineLobbyCallbacks): {
   el('btn-online-back').addEventListener('click', callbacks.onBack)
   form.addEventListener('submit', (event) => {
     event.preventDefault()
-    callbacks.onCreate(nameInput.value.trim() || '玩家一')
+    callbacks.onCreate(nameInput.value.trim() || resolveNickname(nameInput.value))
   })
 
   return {
@@ -27,7 +28,7 @@ export function setupOnlineLobby(callbacks: OnlineLobbyCallbacks): {
       createButton.textContent = busy ? '建立中…' : '建立對戰邀請'
     },
     prefillName() {
-      nameInput.value = loadSettings().playerNames[0]
+      nameInput.value = resolveNickname(loadSettings().playerNames[0])
     },
   }
 }

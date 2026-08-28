@@ -5,6 +5,7 @@ import { createAllPieces } from './game/pieces'
 import { fisherYatesShuffle, secureRandomInt } from './game/shuffle'
 import { createCommitment, type FairnessData } from './game/fairness'
 import { GAME_OVER_REASON_TEXT, type GameSummary, type PresenceInfo } from './shared/protocol'
+import { resolveNickname } from './shared/fun-names'
 import { createSceneContext, isWebGLAvailable, type SceneContext } from './rendering/scene'
 import { PhysicsWorld } from './physics/world'
 import { GameController, type ControllerCallbacks } from './controller'
@@ -355,7 +356,7 @@ export class App {
       event.preventDefault()
       const roomId = this.pendingJoinRoomId
       if (!roomId) return
-      const name = el<HTMLInputElement>('input-join-name').value.trim() || (this.pendingJoinIntent === 'watch' ? '觀眾' : '玩家二')
+      const name = el<HTMLInputElement>('input-join-name').value.trim() || resolveNickname()
       this.settings.playerNames[0] = name
       saveSettings(this.settings)
       this.pendingJoinRoomId = null
@@ -742,7 +743,7 @@ export class App {
     this.pendingJoinRoomId = roomId
     this.pendingJoinIntent = intent
     this.setMode('online')
-    el<HTMLInputElement>('input-join-name').value = this.settings.playerNames[0]
+    el<HTMLInputElement>('input-join-name').value = resolveNickname(this.settings.playerNames[0])
     if (intent === 'watch') {
       el('join-title').textContent = '進入觀戰'
       el('join-desc').textContent = '輸入你的暱稱後進場觀戰——可以在聊天室裡幫喊加油，但不能下棋。'
