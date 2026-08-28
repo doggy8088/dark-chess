@@ -8,6 +8,12 @@ import { el } from './dom'
  *  sentences don't always sit first for everyone. */
 const CANNED_SHUFFLE_INTERVAL_MS = 15_000
 
+/** Only a random slice is shown at a time — 76 chips in one strip is an
+ *  endless scroll on mobile (and resets every reshuffle). The rotation
+ *  keeps the full pool in play over time. */
+const CANNED_VISIBLE_DESKTOP = 18
+const CANNED_VISIBLE_MOBILE = 10
+
 export interface ChatPanelCallbacks {
   onSend(text: string): void
   onCanned(id: string): void
@@ -78,7 +84,12 @@ export class ChatPanel {
     this.applySavedSize()
 
     const cannedRow = el('chat-canned')
-    const reshuffleCanned = (): void => this.renderCannedChips(cannedRow, fisherYatesShuffle(CANNED_MESSAGES))
+    const reshuffleCanned = (): void => {
+      const visibleCount = window.matchMedia('(min-width: 1024px)').matches ? CANNED_VISIBLE_DESKTOP : CANNED_VISIBLE_MOBILE
+      const previousScrollLeft = cannedRow.scrollLeft
+      this.renderCannedChips(cannedRow, fisherYatesShuffle(CANNED_MESSAGES).slice(0, visibleCount))
+      cannedRow.scrollLeft = previousScrollLeft
+    }
     reshuffleCanned()
     window.setInterval(reshuffleCanned, CANNED_SHUFFLE_INTERVAL_MS)
   }
