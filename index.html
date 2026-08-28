@@ -177,14 +177,14 @@
     <!-- ONLINE WAITING -->
     <section id="screen-online-wait" class="screen" hidden>
       <div class="setup-inner wait-inner">
-        <h2 class="setup-title">等待對手加入…</h2>
-        <p class="wait-hint">把下面的連結（或 QR Code）傳給對手，開啟即可立刻對戰。</p>
+        <h2 class="setup-title" id="wait-title">等待對手加入…</h2>
+        <p class="wait-hint" id="wait-hint">把下面的連結（或 QR Code）傳給對手，開啟即可立刻對戰。</p>
         <code id="invite-url" class="hash-block invite-url"></code>
         <div class="wait-actions">
           <button id="btn-copy-invite" class="btn btn-primary" type="button" aria-label="複製邀請連結">複製連結</button>
         </div>
         <canvas id="invite-qr" class="invite-qr" aria-label="邀請連結 QR Code"></canvas>
-        <p class="wait-status"><span class="wait-dot" aria-hidden="true"></span>對手加入後將自動開始</p>
+        <p class="wait-status"><span class="wait-dot" aria-hidden="true"></span><span id="wait-note">對手加入後將自動開始</span></p>
         <button id="btn-wait-cancel" class="btn btn-ghost" type="button" aria-label="回主選單">回主選單</button>
       </div>
     </section>

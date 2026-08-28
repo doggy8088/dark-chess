@@ -964,9 +964,19 @@ export class App {
     showScreen('screen-online-wait')
 
     this.online = new OnlineSession(roomId, myName, {
-      onWaiting: (inviteUrl) => {
+      onWaiting: (inviteUrl, spectating) => {
         showScreen('screen-online-wait')
         showInvite(inviteUrl)
+        if (spectating) {
+          // 觀戰者不是房主：等待文案改為觀戰視角，邀請連結保留（可幫忙找人）。
+          el('wait-title').textContent = '等待玩家開局…'
+          el('wait-hint').textContent = '房間還在等對手加入。開局後會自動帶你進場觀戰——也可以把上面的連結分享出去幫忙找人！'
+          el('wait-note').textContent = '開局後會自動帶你進入觀戰'
+        } else {
+          el('wait-title').textContent = '等待對手加入…'
+          el('wait-hint').textContent = '把下面的連結（或 QR Code）傳給對手，開啟即可立刻對戰。'
+          el('wait-note').textContent = '對手加入後將自動開始'
+        }
       },
       onGameReady: (state, hidden, { resumed }) => this.beginOnlineGame(state, hidden, { intro: !resumed }),
       onServerAction: (action, state, hidden, reveal) => {

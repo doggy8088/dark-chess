@@ -21,7 +21,7 @@ export interface GameOverInfo {
 
 export interface OnlineSessionCallbacks {
   /** Room is waiting for the opponent — show the invite/waiting panel. */
-  onWaiting(inviteUrl: string): void
+  onWaiting(inviteUrl: string, spectating: boolean): void
   /** Both seats filled (first time or after rejoin): present this state. */
   onGameReady(state: GameState, hidden: Set<string>, options: { resumed: boolean }): void
   /** A confirmed action (mine or the opponent's) to animate. */
@@ -209,7 +209,7 @@ export class OnlineSession {
           this.gameOverInfo = msg.gameOver
         }
         if (msg.roomStatus === 'waiting') {
-          this.callbacks.onWaiting(this.inviteUrl)
+          this.callbacks.onWaiting(this.inviteUrl, this.seat === 'spectator')
         } else {
           const { state, hidden } = toClientState(msg.state)
           const resumed = this.started
