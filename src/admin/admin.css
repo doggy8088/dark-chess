@@ -38,6 +38,13 @@ body {
 
 .admin-main { padding: 20px 24px 48px; max-width: var(--admin-max); margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
 
+/* 區塊之間保留間距：儀表板內的卡片（指標、公告、圖表）也要有 margin */
+#admin-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .admin-card {
   background: var(--admin-card);
   border: 1px solid var(--admin-border);
