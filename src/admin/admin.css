@@ -12,9 +12,15 @@
 
 * { box-sizing: border-box; }
 
+/* 橡皮筋過捲動時露出的是 root 背景：沒有設定會閃白底 */
+html {
+  background: var(--admin-bg);
+}
+
 body {
   margin: 0;
   background: radial-gradient(1200px 600px at 20% -10%, #2a2019 0%, var(--admin-bg) 55%);
+  background-attachment: fixed;
   color: var(--admin-text);
   font-family: 'PingFang TC', 'Microsoft JhengHei', system-ui, sans-serif;
   min-height: 100vh;
