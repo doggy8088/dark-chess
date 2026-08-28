@@ -336,9 +336,13 @@ export class ChatPanel {
       this.playersList.append(li)
     }
 
-    // Spectators: sort by stroke count (筆畫排序)
+    // Spectators: sort by stroke count (筆畫排序)，但「自己」永遠排在第一位。
     const spectators: SpectatorPresence[] = presence.spectatorList ?? []
-    const sortedSpectators = [...spectators].sort((a, b) => strokeCollator.compare(a.name, b.name))
+    const isMe = (spec: SpectatorPresence): boolean => this.mySeat === null && spec.name === this.myName
+    const sortedSpectators = [...spectators].sort((a, b) => {
+      if (isMe(a) !== isMe(b)) return isMe(a) ? -1 : 1
+      return strokeCollator.compare(a.name, b.name)
+    })
 
     this.spectatorsCountSub.textContent = `(${sortedSpectators.length})`
 
