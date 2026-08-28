@@ -1,6 +1,6 @@
 /** Synthesized tabletop sound effects via Web Audio — no remote assets. */
 
-export type SoundName = 'flip' | 'place' | 'move' | 'capture' | 'win' | 'invalid'
+export type SoundName = 'flip' | 'place' | 'move' | 'capture' | 'win' | 'invalid' | 'opponent-joined'
 
 export class SoundPlayer {
   private context: AudioContext | null = null
@@ -49,6 +49,11 @@ export class SoundPlayer {
         break
       case 'invalid':
         this.thud(ctx, now, 70, 0.09, 0.16)
+        break
+      case 'opponent-joined':
+        // 叮咚門鈴音：對手進入房間的提示。
+        this.pluck(ctx, now, 659.25, 0.22, 0.12)
+        this.pluck(ctx, now + 0.14, 987.77, 0.32, 0.14)
         break
     }
   }

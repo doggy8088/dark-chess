@@ -1075,7 +1075,11 @@ export class App {
           el('wait-note').textContent = '對手加入後將自動開始'
         }
       },
-      onGameReady: (state, hidden, { resumed }) => this.beginOnlineGame(state, hidden, { intro: !resumed }),
+      onGameReady: (state, hidden, { resumed }) => {
+        // 對手加入（非斷線重連）：播放提示音，讓等待方知道有人進房了。
+        if (!resumed) this.sounds.play('opponent-joined')
+        this.beginOnlineGame(state, hidden, { intro: !resumed })
+      },
       onServerAction: (action, state, hidden, reveal) => {
         const controller = this.controller
         if (!controller || this.phase === 'HOME') return
