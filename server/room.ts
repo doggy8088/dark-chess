@@ -774,8 +774,9 @@ export class Room {
   }
 }
 
-// A message-only seat check: chat and game control are for seated players.
-// Spectators can watch but not speak or act (v1).
+// A message-only seat check for game-control messages (action、draw/abort/
+// rematch 等)。聊天、罐頭訊息、公告已讀與接手在進入此檢查之前就已處理，
+// 因此觀戰者可以聊天與互動，只是不能操作棋局。
 export function isSeated(seat: SeatOrSpectator | null): seat is Seat {
   return seat === 0 || seat === 1
 }
