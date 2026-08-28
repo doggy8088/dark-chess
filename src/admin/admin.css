@@ -7,6 +7,7 @@
   --admin-accent: #d4a658;
   --admin-red: #e05c4a;
   --admin-green: #7fb069;
+  --admin-max: 1280px;
 }
 
 * { box-sizing: border-box; }
@@ -24,7 +25,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 18px 24px;
+  padding: 18px max(24px, calc((100% - var(--admin-max)) / 2 + 24px));
   border-bottom: 1px solid var(--admin-border);
   background: rgba(0, 0, 0, 0.25);
 }
@@ -35,7 +36,7 @@ body {
 
 .admin-user { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--admin-accent); }
 
-.admin-main { padding: 20px 24px 48px; max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.admin-main { padding: 20px 24px 48px; max-width: var(--admin-max); margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
 
 .admin-card {
   background: var(--admin-card);
@@ -56,8 +57,17 @@ body {
 
 .admin-live-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  /* 8 張指標卡固定 2×4，避免 auto-fit 在寬螢幕排出 6+2 的缺口 */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .admin-live-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 480px) {
+  .admin-live-grid { grid-template-columns: 1fr; }
 }
 
 .admin-live-card {
