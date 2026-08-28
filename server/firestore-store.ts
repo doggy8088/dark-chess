@@ -1,5 +1,5 @@
 import { Firestore, Timestamp } from '@google-cloud/firestore'
-import type { RoomDoc, RoomStore } from './store'
+import { isLobbyListable, byLobbyOrder, type RoomDoc, type RoomStore } from './store'
 
 /**
  * One document per room in `rooms/{roomId}`. GameState and chat are stored
@@ -18,8 +18,7 @@ export class FirestoreStore implements RoomStore {
     if (!snapshot.exists) return null
     const data = snapshot.data() as Record<string, unknown>
     if (data.version !== 1 || typeof data.stateJson !== 'string') return null
-    const expireAt = data.expireAt instanceof Timestamp ? data.expireAt.toMillis() : Number(data.expireAt ?? 0)
-    return { ...(data as unknown as RoomDoc), expireAt }
+    return this.toDoc(data)
   }
 
   async save(doc: RoomDoc): Promise<void> {
@@ -30,16 +29,24 @@ export class FirestoreStore implements RoomStore {
     await this.rooms.doc(roomId).delete()
   }
 
-  async listActive(limit: number): Promise<RoomDoc[]> {
+  async listActive(limit: number, now: number): Promise<RoomDoc[]> {
     // Single-field filter — no composite index needed; sort in memory.
-    const snapshot = await this.rooms.where('status', '==', 'playing').limit(50).get()
+    // Finished games are listed too while they linger on the live board.
+    const snapshot = await this.rooms.where('status', 'in', ['playing', 'finished']).limit(200).get()
     const docs: RoomDoc[] = []
     for (const doc of snapshot.docs) {
       const data = doc.data() as Record<string, unknown>
       if (data.version !== 1 || typeof data.stateJson !== 'string') continue
-      const expireAt = data.expireAt instanceof Timestamp ? data.expireAt.toMillis() : Number(data.expireAt ?? 0)
-      docs.push({ ...(data as unknown as RoomDoc), expireAt })
+      const normalized = this.toDoc(data)
+      if (isLobbyListable(normalized, now)) docs.push(normalized)
     }
-    return docs.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, limit)
+    return docs.sort(byLobbyOrder).slice(0, limit)
+  }
+
+  /** Normalizes Firestore-native fields back to the RoomDoc shape. */
+  private toDoc(data: Record<string, unknown>): RoomDoc {
+    const expireAt = data.expireAt instanceof Timestamp ? data.expireAt.toMillis() : Number(data.expireAt ?? 0)
+    const finishedAt = typeof data.finishedAt === 'number' ? data.finishedAt : null
+    return { ...(data as unknown as RoomDoc), expireAt, finishedAt }
   }
 }

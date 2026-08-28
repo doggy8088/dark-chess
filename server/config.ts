@@ -12,6 +12,9 @@ export const FIRESTORE_ENABLED = process.env.FIRESTORE_ENABLED !== '0'
 /** Finished rooms expire this long after the game ends. */
 export const FINISHED_ROOM_TTL_MS = 24 * 60 * 60 * 1000
 
+/** Ended games linger on the home live board this long after the game ends. */
+export const LOBBY_ENDED_RETENTION_MS = 5 * 60 * 1000
+
 /** Unfinished rooms expire this long after their last update. */
 export const IDLE_ROOM_TTL_MS = 7 * 24 * 60 * 60 * 1000
 

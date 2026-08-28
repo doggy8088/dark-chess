@@ -510,10 +510,11 @@ export class App {
 
     block.hidden = false
 
-    // Update global war room stats
+    // Ended games linger on the board for a few minutes; live stats count battles only.
+    const playingCount = games.filter((g) => g.status !== 'finished').length
     const totalSpectators = games.reduce((acc, g) => acc + g.spectators, 0)
-    const totalPlayers = games.length * 2
-    if (statGames) statGames.textContent = String(games.length)
+    const totalPlayers = playingCount * 2
+    if (statGames) statGames.textContent = String(playingCount)
     if (statPlayers) statPlayers.textContent = String(totalPlayers)
     if (statSpectators) statSpectators.textContent = String(totalSpectators)
 
@@ -523,8 +524,9 @@ export class App {
       const remainingRed = 16 - game.capturedRed
       const remainingBlack = 16 - game.capturedBlack
       const totalCaptures = game.capturedRed + game.capturedBlack
-      const isTight = game.turnNumber >= 10 && Math.abs(remainingRed - remainingBlack) <= 1
-      const isFierce = totalCaptures >= 12
+      const isEnded = game.status === 'finished'
+      const isTight = !isEnded && game.turnNumber >= 10 && Math.abs(remainingRed - remainingBlack) <= 1
+      const isFierce = !isEnded && totalCaptures >= 12
 
       // Check if updated since last snapshot
       const prev = this.prevLiveGames.get(game.roomId)
@@ -536,6 +538,9 @@ export class App {
 
       const card = document.createElement('li')
       card.className = 'war-card'
+      if (isEnded) {
+        card.classList.add('war-card-ended')
+      }
       if (hasUpdated) {
         card.classList.add('war-card-updated')
       }
@@ -552,8 +557,13 @@ export class App {
       tags.className = 'war-card-tags'
 
       const liveTag = document.createElement('span')
-      liveTag.className = 'war-tag war-tag-live'
-      liveTag.innerHTML = '<span class="war-dot" aria-hidden="true"></span>交戰中'
+      if (isEnded) {
+        liveTag.className = 'war-tag war-tag-ended'
+        liveTag.textContent = '🏁 已結束'
+      } else {
+        liveTag.className = 'war-tag war-tag-live'
+        liveTag.innerHTML = '<span class="war-dot" aria-hidden="true"></span>交戰中'
+      }
       tags.append(liveTag)
 
       if (isTight) {
@@ -670,8 +680,10 @@ export class App {
       const watch = document.createElement('button')
       watch.type = 'button'
       watch.className = 'btn btn-ghost btn-small war-btn-watch'
-      watch.innerHTML = '進入觀戰 <span class="war-btn-arrow" aria-hidden="true">↗</span>'
-      watch.setAttribute('aria-label', `進入觀戰 ${p0.name} 對 ${p1.name}`)
+      watch.innerHTML = isEnded
+        ? '觀看棋局 <span class="war-btn-arrow" aria-hidden="true">↗</span>'
+        : '進入觀戰 <span class="war-btn-arrow" aria-hidden="true">↗</span>'
+      watch.setAttribute('aria-label', `進入觀戰 ${p0.name} 對 ${p1.name}${isEnded ? '（已結束）' : ''}`)
       watch.addEventListener('click', () => {
         history.replaceState(null, '', `/r/${game.roomId}`)
         this.joinOnlineRoom(game.roomId, 'watch')

@@ -1,7 +1,12 @@
 import type { ChatMessage, PresenceInfo, RedactedStateDTO, SpectatorPresence } from '../shared/protocol'
 import type { GameState } from '../game/types'
-import { CANNED_MESSAGES } from '../shared/canned'
+import { CANNED_MESSAGES, type CannedMessage } from '../shared/canned'
+import { fisherYatesShuffle } from '../game/shuffle'
 import { el } from './dom'
+
+/** Canned quick-chat chips reshuffle on this cadence so the same few
+ *  sentences don't always sit first for everyone. */
+const CANNED_SHUFFLE_INTERVAL_MS = 15_000
 
 export interface ChatPanelCallbacks {
   onSend(text: string): void
@@ -68,14 +73,21 @@ export class ChatPanel {
     })
 
     const cannedRow = el('chat-canned')
-    cannedRow.textContent = ''
-    for (const canned of CANNED_MESSAGES) {
+    const reshuffleCanned = (): void => this.renderCannedChips(cannedRow, fisherYatesShuffle(CANNED_MESSAGES))
+    reshuffleCanned()
+    window.setInterval(reshuffleCanned, CANNED_SHUFFLE_INTERVAL_MS)
+  }
+
+  /** Rebuilds the quick-chat chips in the given (shuffled) order. */
+  private renderCannedChips(row: HTMLElement, order: readonly CannedMessage[]): void {
+    row.textContent = ''
+    for (const canned of order) {
       const chip = document.createElement('button')
       chip.type = 'button'
       chip.className = 'canned-chip'
       chip.textContent = canned.text
       chip.addEventListener('click', () => this.callbacks.onCanned(canned.id))
-      cannedRow.append(chip)
+      row.append(chip)
     }
   }
 

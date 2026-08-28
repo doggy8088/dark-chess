@@ -2,7 +2,7 @@ import type { GameState } from '../src/game/types'
 import type { GameSummary } from '../src/shared/protocol'
 import { Room, type RoomDeps } from './room'
 import { newRoomId } from './ids'
-import type { RoomDoc, RoomStore } from './store'
+import { isLobbyListable, type RoomDoc, type RoomStore } from './store'
 
 /** In-memory room cache with load-on-miss from the persistent store. */
 export class RoomManager {
@@ -70,31 +70,35 @@ export class RoomManager {
     return pending
   }
 
-  /** Live-games board for the home screen: in-progress games, newest first. */
+  /**
+   * Live-games board for the home screen: games in progress, plus finished
+   * games that linger for a few minutes so results don't vanish mid-scroll.
+   * Newest room first — the order keys off creation time, which never
+   * changes, so rows never jump around while games progress.
+   */
   async listGames(limit = 50): Promise<GameSummary[]> {
-    const map = new Map<string, GameSummary>()
+    const now = this.deps.now()
+    const rows = new Map<string, { summary: GameSummary; createdAt: number }>()
+    const add = (doc: RoomDoc, spectators: number): void => {
+      if (!doc.seats[1]) return
+      if (!isLobbyListable(doc, now)) return
+      const summary = summarizeDoc(doc)
+      if (!summary) return
+      summary.spectators = spectators
+      rows.set(doc.roomId, { summary, createdAt: doc.createdAt })
+    }
     for (const room of this.rooms.values()) {
       room.evaluate()
-      if (room.status === 'playing' && room.seats[1]) {
-        const summary = summarizeDoc(room.toDoc())
-        if (summary) {
-          summary.spectators = room.spectatorCount
-          map.set(room.roomId, summary)
-        }
-      }
+      add(room.toDoc(), room.spectatorCount)
     }
-    const docs = await this.deps.store.listActive(limit)
+    const docs = await this.deps.store.listActive(limit, now)
     for (const doc of docs) {
-      if (map.has(doc.roomId)) continue
-      if (!doc.seats[1]) continue
-      const summary = summarizeDoc(doc)
-      if (!summary) continue
-      summary.spectators = this.rooms.get(doc.roomId)?.spectatorCount ?? 0
-      map.set(doc.roomId, summary)
+      if (rows.has(doc.roomId)) continue
+      add(doc, this.rooms.get(doc.roomId)?.spectatorCount ?? 0)
     }
-    const summaries = [...map.values()]
-    summaries.sort((a, b) => b.updatedAt - a.updatedAt)
-    return summaries.slice(0, limit)
+    const list = [...rows.values()]
+    list.sort((a, b) => b.createdAt - a.createdAt || a.summary.roomId.localeCompare(b.summary.roomId))
+    return list.slice(0, limit).map((row) => row.summary)
   }
 
   /** Drops idle finished rooms from the cache (the store keeps them until TTL). */
@@ -124,6 +128,7 @@ export function summarizeDoc(doc: RoomDoc): GameSummary | null {
     }
     return {
       roomId: doc.roomId,
+      status: doc.status,
       players: [
         { name: state.players[0].name, color: state.players[0].color },
         { name: state.players[1].name, color: state.players[1].color },

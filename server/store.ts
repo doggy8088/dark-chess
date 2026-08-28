@@ -1,4 +1,5 @@
 import type { ChatMessage, GameOverReason, RoomStatus } from '../src/shared/protocol'
+import { LOBBY_ENDED_RETENTION_MS } from './config'
 
 export interface SeatDoc {
   token: string
@@ -24,6 +25,8 @@ export interface RoomDoc {
   /** Chat tail, JSON-encoded (ChatMessage[]). */
   chatJson: string
   result: { reason: GameOverReason; winnerIndex: 0 | 1 | null } | null
+  /** Epoch ms when the game finished; null while it has not finished yet. */
+  finishedAt?: number | null
   createdAt: number
   updatedAt: number
   /** Epoch ms after which the room may be deleted. */
@@ -43,8 +46,23 @@ export interface RoomStore {
   load(roomId: string): Promise<RoomDoc | null>
   save(doc: RoomDoc): Promise<void>
   delete(roomId: string): Promise<void>
-  /** In-progress games, most recently active first. */
-  listActive(limit: number): Promise<RoomDoc[]>
+  /** Rooms listable on the home live board: games in progress plus finished
+   *  ones still within their linger window. Room creation time first. */
+  listActive(limit: number, now: number): Promise<RoomDoc[]>
+}
+
+/** True when the doc may appear on the home live board right now. */
+export function isLobbyListable(doc: RoomDoc, now: number): boolean {
+  if (doc.status === 'playing') return true
+  if (doc.status !== 'finished') return false
+  const endedAt = doc.finishedAt ?? doc.updatedAt
+  return now - endedAt < LOBBY_ENDED_RETENTION_MS
+}
+
+/** Stable live-board order: newest room first. Sorted by creation time —
+ *  which never changes — so rows never jump around while games progress. */
+export function byLobbyOrder(a: RoomDoc, b: RoomDoc): number {
+  return b.createdAt - a.createdAt || a.roomId.localeCompare(b.roomId)
 }
 
 /** Dev/test store. Games do not survive a restart without Firestore. */
@@ -65,10 +83,10 @@ export class InMemoryStore implements RoomStore {
     return Promise.resolve()
   }
 
-  listActive(limit: number): Promise<RoomDoc[]> {
+  listActive(limit: number, now: number): Promise<RoomDoc[]> {
     const active = [...this.docs.values()]
-      .filter((doc) => doc.status === 'playing')
-      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .filter((doc) => isLobbyListable(doc, now))
+      .sort(byLobbyOrder)
       .slice(0, limit)
     return Promise.resolve(structuredClone(active))
   }

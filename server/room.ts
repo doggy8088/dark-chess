@@ -73,6 +73,8 @@ export class Room {
   fairness: { identityLayout: string[]; nonce: string; hash: string }
   seats: [SeatState, SeatState | null]
   result: { reason: GameOverReason; winnerIndex: 0 | 1 | null } | null = null
+  /** When the game finished; null until then, reset by a rematch. */
+  finishedAt: number | null = null
 
   /** Turn clock. Exactly one of deadlineAt / pausedRemainingMs is set while playing. */
   private deadlineAt: number | null = null
@@ -87,7 +89,7 @@ export class Room {
   private abortOfferBy: Seat | null = null
   private rematchOfferBy: Seat | null = null
   private timerHandle: ReturnType<typeof setTimeout> | null = null
-  private readonly createdAt: number
+  readonly createdAt: number
   private persistChain: Promise<void> = Promise.resolve()
 
   private constructor(
@@ -140,6 +142,7 @@ export class Room {
     const room = new Room(doc.roomId, state, doc.fairness, seats, doc.status, doc.createdAt, deps)
     room.chat = parseChat(doc)
     room.result = doc.result
+    room.finishedAt = doc.finishedAt ?? null
     room.deadlineAt = doc.turn.deadlineAt
     room.pausedRemainingMs = doc.turn.pausedRemainingMs
     room.graceDeadlineAt = doc.turn.graceDeadlineAt
@@ -181,6 +184,7 @@ export class Room {
       },
       chatJson: JSON.stringify(this.chat.slice(-CHAT_TAIL_LENGTH)),
       result: this.result,
+      finishedAt: this.finishedAt,
       createdAt: this.createdAt,
       updatedAt: now,
       expireAt: this.status === 'finished' ? now + FINISHED_ROOM_TTL_MS : now + IDLE_ROOM_TTL_MS,
@@ -545,6 +549,7 @@ export class Room {
     if (this.status === 'finished') return
     this.status = 'finished'
     this.result = { reason, winnerIndex }
+    this.finishedAt = this.deps.now()
     if (reason !== 'draw-agreed' && reason !== 'draw' && winnerIndex !== null) {
       this.state.status = 'won'
       this.state.winnerIndex = winnerIndex
@@ -573,6 +578,7 @@ export class Room {
     this.state = state
     this.fairness = fairness
     this.result = null
+    this.finishedAt = null
     this.status = 'playing'
     this.startTurnClock()
     this.broadcast({

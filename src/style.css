@@ -486,6 +486,24 @@ button { font: inherit; color: inherit; }
   color: #d1c7b7;
 }
 
+.war-tag-ended {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #a89c88;
+}
+
+/* Ended games linger on the board for a few minutes — visually muted. */
+.war-card-ended {
+  opacity: 0.68;
+  border-color: rgba(212, 166, 88, 0.12);
+}
+
+.war-card-ended:hover {
+  transform: none;
+  border-color: rgba(212, 166, 88, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
 /* Commanders Row */
 .war-commanders {
   display: grid;
@@ -1330,7 +1348,6 @@ body.mode-online #hud-bottom { padding-right: 84px; }
 }
 #chat-drawer[hidden] { display: none !important; }
 
-.chat-drag-hint { font-size: 11px; color: #7d6f5c; font-weight: 400; letter-spacing: .02em; }
 #chat-drag-handle {
   user-select: none;
   -webkit-user-select: none;

@@ -51,6 +51,8 @@ export interface ChatMessage {
 /** One row of the home screen's live-games board. All public info. */
 export interface GameSummary {
   roomId: string
+  /** 'playing' while the battle is on; 'finished' rows linger briefly after the game ends. */
+  status: RoomStatus
   players: [{ name: string; color: Color | null }, { name: string; color: Color | null }]
   /** Captured piece counts: how many red / black pieces have fallen. */
   capturedRed: number
