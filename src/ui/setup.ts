@@ -63,10 +63,18 @@ const SCREEN_IDS = [
 ] as const
 export type ScreenId = (typeof SCREEN_IDS)[number]
 
+/** 畫面切換後的瀏覽器歷史同步（由 App 設定，讓網址列與「上一頁」可用）。 */
+let screenHistorySync: ((id: ScreenId) => void) | null = null
+
+export function setScreenHistorySync(fn: ((id: ScreenId) => void) | null): void {
+  screenHistorySync = fn
+}
+
 export function showScreen(id: ScreenId): void {
   for (const screenId of SCREEN_IDS) {
     el(screenId).hidden = screenId !== id
   }
+  screenHistorySync?.(id)
 }
 
 export function showError(title: string, message: string): void {

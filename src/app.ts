@@ -1,4 +1,5 @@
 import type { Action, Color, GameState, Piece, PieceType } from './game/types'
+import type { ScreenId } from './ui/setup'
 import { agreeDraw } from './game/actions'
 import { createGame } from './game/game-state'
 import { createAllPieces } from './game/pieces'
@@ -18,7 +19,7 @@ import { Hud } from './ui/hud'
 import { ChatPanel } from './ui/chat'
 import { setupOnlineLobby, showInvite } from './ui/online-lobby'
 import { confirmDialog, openDialog, setupDialogs, showAnnouncementDialog, showFairnessDialog, showGameOverDialog } from './ui/dialogs'
-import { setupHomeAndSetupScreens, showError, showScreen } from './ui/setup'
+import { setupHomeAndSetupScreens, setScreenHistorySync, showError, showScreen } from './ui/setup'
 import { el } from './ui/dom'
 import {
   clearSavedGame,
@@ -57,6 +58,8 @@ export class App {
   private online: OnlineSession | null = null
   private lobbySocket: ReconnectingSocket | null = null
   private prevLiveGames = new Map<string, { turnNumber: number; capturedRed: number; capturedBlack: number }>()
+  /** 目前瀏覽器歷史中的路徑（避免重複 push 同一個網址）。 */
+  private currentHistoryPath = window.location.pathname
   /** 加入對戰 3 秒自動進入的倒數計時器。 */
   private joinCountdownTimer: number | null = null
   /** 即時戰況「只看交戰中」篩選（隱藏保留中的已結束房間）。 */
@@ -140,9 +143,24 @@ export class App {
     if (options.joinRoomId) {
       this.joinOnlineRoom(options.joinRoomId)
     } else {
-      this.goHome()
+      this.enterInitialScreen()
     }
     requestAnimationFrame((time) => this.loop(time))
+  }
+
+  /** 依網址進入對應的初始畫面（支援 /r/{roomId}、/online、/setup、/）。 */
+  private enterInitialScreen(): void {
+    const path = window.location.pathname
+    if (path === '/online') {
+      this.lobbyControls.prefillName()
+      showScreen('screen-online-setup')
+      return
+    }
+    if (path === '/setup') {
+      showScreen('screen-setup')
+      return
+    }
+    this.goHome()
   }
 
   // ------------------------------------------------------------- lifecycle
@@ -150,6 +168,10 @@ export class App {
   private goHome(): void {
     this.phase = 'HOME'
     this.cancelJoinCountdown(false)
+    // 關閉還開著的對話框（結算、規則等），避免殘留在首頁上。
+    for (const dialog of document.querySelectorAll('dialog[open]')) {
+      if ((dialog as HTMLDialogElement).dataset.persistent !== 'true') (dialog as HTMLDialogElement).close()
+    }
     this.leaveOnlineMode()
     this.pauseClock()
     this.homeControls.setResumeAvailable(loadSavedGame() !== null)
@@ -353,6 +375,66 @@ export class App {
 
     this.wireSideHistoryToggle()
     this.wireFullscreen()
+    setScreenHistorySync((id) => this.syncHistoryForScreen(id))
+    window.addEventListener('popstate', () => this.handleHistoryNavigation())
+  }
+
+  // ---------------------------------------------------- 瀏覽器歷史導覽（上一頁）
+
+  /** 畫面 → 網址：進入線上對戰相關頁面時改變網址列，並留下歷史紀錄。 */
+  private syncHistoryForScreen(screenId: ScreenId): void {
+    const roomId = this.online?.roomId ?? this.pendingJoinRoomId
+    const target =
+      screenId === 'screen-home'
+        ? '/'
+        : screenId === 'screen-setup'
+          ? '/setup'
+          : screenId === 'screen-online-setup'
+            ? '/online'
+            : screenId === 'screen-online-join' || screenId === 'screen-online-wait' || screenId === 'screen-game'
+              ? roomId
+                ? `/r/${roomId}`
+                : null
+              : null
+    if (!target || target === this.currentHistoryPath) return
+    this.currentHistoryPath = target
+    history.pushState({ screen: screenId }, '', target)
+  }
+
+  /** 瀏覽器上一頁／下一頁：依網址切換回對應畫面。 */
+  private handleHistoryNavigation(): void {
+    const path = window.location.pathname
+    this.currentHistoryPath = path
+    const roomMatch = /^\/r\/([a-z2-9]{10})$/.exec(path)
+    if (roomMatch) {
+      const roomId = roomMatch[1]!
+      if (this.online?.roomId === roomId) {
+        // 還在同一個房間的 session：把畫面帶回來即可。
+        if (this.phase === 'PLAYING' || this.phase === 'GAME_OVER') {
+          showScreen('screen-game')
+        } else {
+          this.joinOnlineRoom(roomId, 'play')
+        }
+        return
+      }
+      if (this.phase === 'PLAYING' || this.phase === 'GAME_OVER') {
+        // 正在別的對局中，不自動跳進舊房間連結。
+        this.goHome()
+        return
+      }
+      this.joinOnlineRoom(roomId, 'play')
+      return
+    }
+    if (path === '/online' && this.onlineAvailable && this.phase === 'HOME') {
+      this.lobbyControls.prefillName()
+      showScreen('screen-online-setup')
+      return
+    }
+    if (path === '/setup' && this.phase === 'HOME') {
+      showScreen('screen-setup')
+      return
+    }
+    this.goHome()
   }
 
   /** 桌面版右側「對局紀錄」收合開關（狀態存 localStorage）。 */
@@ -857,7 +939,6 @@ export class App {
           : '進入觀戰 <span class="war-btn-arrow" aria-hidden="true">↗</span>'
       watch.setAttribute('aria-label', isWaiting ? `加入 ${p0.name} 的房間` : `進入觀戰 ${p0.name} 對 ${p1.name}${isEnded ? '（已結束）' : ''}`)
       watch.addEventListener('click', () => {
-        history.replaceState(null, '', `/r/${game.roomId}`)
         this.joinOnlineRoom(game.roomId, isWaiting ? 'play' : 'watch')
       })
 
@@ -892,7 +973,6 @@ export class App {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = (await res.json()) as { roomId: string; playerToken: string }
       saveRoomToken(data.roomId, data.playerToken)
-      history.replaceState(null, '', `/r/${data.roomId}`)
       this.openOnlineSession(data.roomId, name)
     } catch (error) {
       console.warn('建立房間失敗', error)

@@ -300,8 +300,11 @@ app.post('/api/rooms', async (req, res) => {
   }
 })
 
-// Invite URLs are client-side routes: serve the SPA shell.
+// Invite URLs 與其他 client-side routes：統一回 SPA shell（由前端依網址切換畫面）。
 app.get(/^\/r\/[a-z2-9]{10}$/, (_req, res) => {
+  res.sendFile(path.join(distDir, 'index.html'))
+})
+app.get(/^\/(online|setup)$/, (_req, res) => {
   res.sendFile(path.join(distDir, 'index.html'))
 })
 
