@@ -170,29 +170,149 @@ async function refreshAll(): Promise<void> {
 
 async function refreshLive(): Promise<void> {
   const live = await request<LiveSnapshot>('/api/admin/metrics/live')
-  el('admin-version').textContent = `伺服器版本 v${live.version} · 運行 ${Math.floor(live.uptimeSec / 60)} 分鐘`
-  const cards: Array<{ label: string; value: string }> = [
-    { label: '連線玩家', value: String(live.players) },
-    { label: '觀戰人數', value: String(live.spectators) },
-    { label: '大廳連線', value: String(live.lobby) },
-    { label: '進行戰局', value: String(live.roomsPlaying) },
-    { label: '等待房間', value: String(live.roomsWaiting) },
-    { label: 'Event-loop 延遲', value: `${live.lagMs} ms` },
-    { label: '記憶體 RSS', value: `${live.rssMb} MB` },
-    { label: 'Heap 使用', value: `${live.heapMb} MB` },
+  el('admin-version').textContent = `伺服器版本 v${live.version} · 運行 ${formatUptime(live.uptimeSec)}`
+
+  const cards: AdminLiveCard[] = [
+    {
+      emoji: '🧑‍🤝‍🧑',
+      label: '連線玩家',
+      value: String(live.players),
+      status: crowdStatus(live.players).text,
+      tone: crowdStatus(live.players).tone,
+      delta: deltaOf(live.players, prevLive?.players),
+    },
+    {
+      emoji: '👀',
+      label: '觀戰人數',
+      value: String(live.spectators),
+      status: live.spectators === 0 ? '還沒有觀眾進場' : `有 ${live.spectators} 人在圍觀 🍿`,
+      tone: live.spectators === 0 ? 'muted' : 'ok',
+      delta: deltaOf(live.spectators, prevLive?.spectators),
+    },
+    {
+      emoji: '🛋️',
+      label: '大廳連線',
+      value: String(live.lobby),
+      status: live.lobby === 0 ? '大廳空空的' : `${live.lobby} 人在逛大廳找對手`,
+      tone: live.lobby === 0 ? 'muted' : 'ok',
+      delta: deltaOf(live.lobby, prevLive?.lobby),
+    },
+    {
+      emoji: '⚔️',
+      label: '進行戰局',
+      value: String(live.roomsPlaying),
+      status: live.roomsPlaying === 0 ? '棋盤們在打瞌睡 💤' : `${live.roomsPlaying} 場激戰中 🔥`,
+      tone: live.roomsPlaying === 0 ? 'muted' : 'ok',
+      delta: deltaOf(live.roomsPlaying, prevLive?.roomsPlaying),
+    },
+    {
+      emoji: '🚪',
+      label: '等待房間',
+      value: String(live.roomsWaiting),
+      status: live.roomsWaiting === 0 ? '沒有人在等腳友' : `${live.roomsWaiting} 間房虛位以待`,
+      tone: live.roomsWaiting === 0 ? 'muted' : 'warn',
+      delta: deltaOf(live.roomsWaiting, prevLive?.roomsWaiting),
+    },
+    {
+      emoji: '⚡',
+      label: 'Event-loop 延遲',
+      value: `${live.lagMs} ms`,
+      status: lagStatus(live.lagMs).text,
+      tone: lagStatus(live.lagMs).tone,
+    },
+    {
+      emoji: '🧠',
+      label: '記憶體 RSS',
+      value: `${live.rssMb} MB`,
+      status: memStatus(live.rssMb).text,
+      tone: memStatus(live.rssMb).tone,
+    },
+    {
+      emoji: '📦',
+      label: 'Heap 使用',
+      value: `${live.heapMb} MB`,
+      status: memStatus(live.heapMb).text,
+      tone: memStatus(live.heapMb).tone,
+    },
   ]
+  prevLive = live
+  renderLiveCards(cards)
+}
+
+/** 指標卡上一次的快照，用於畫 ▲▼ 趨勢。 */
+let prevLive: LiveSnapshot | null = null
+
+interface AdminLiveCard {
+  emoji: string
+  label: string
+  value: string
+  status: string
+  tone: 'ok' | 'warn' | 'bad' | 'muted'
+  delta?: number
+}
+
+function deltaOf(current: number, previous: number | undefined): number | undefined {
+  if (previous === undefined || previous === current) return undefined
+  return current - previous
+}
+
+function crowdStatus(n: number): { text: string; tone: AdminLiveCard['tone'] } {
+  if (n === 0) return { text: '現在很冷清…快來開一局！', tone: 'muted' }
+  if (n <= 2) return { text: '正好開打', tone: 'ok' }
+  if (n <= 6) return { text: '很熱鬧 🔥', tone: 'ok' }
+  return { text: '鑼鼓喧天，全場沸騰 🎉', tone: 'warn' }
+}
+
+function lagStatus(lagMs: number): { text: string; tone: AdminLiveCard['tone'] } {
+  if (lagMs < 20) return { text: '順得很 ✨', tone: 'ok' }
+  if (lagMs < 60) return { text: '還算順', tone: 'warn' }
+  return { text: '有點喘 😮‍💨', tone: 'bad' }
+}
+
+function memStatus(mb: number): { text: string; tone: AdminLiveCard['tone'] } {
+  if (mb < 250) return { text: '身體健康', tone: 'ok' }
+  if (mb < 450) return { text: '吃得剛剛好', tone: 'warn' }
+  return { text: '有點吃太飽了', tone: 'bad' }
+}
+
+function formatUptime(sec: number): string {
+  if (sec < 3600) return `${Math.floor(sec / 60)} 分鐘`
+  return `${Math.floor(sec / 3600)} 小時 ${Math.floor((sec % 3600) / 60)} 分`
+}
+
+function renderLiveCards(cards: AdminLiveCard[]): void {
   const grid = el('admin-live-cards')
   grid.textContent = ''
   for (const card of cards) {
     const cardEl = document.createElement('div')
-    cardEl.className = 'admin-live-card'
+    cardEl.className = `admin-live-card tone-${card.tone}`
+
+    const top = document.createElement('div')
+    top.className = 'admin-live-top'
+    const emoji = document.createElement('span')
+    emoji.className = 'admin-live-emoji'
+    emoji.textContent = card.emoji
     const num = document.createElement('div')
     num.className = 'admin-live-num'
     num.textContent = card.value
+    top.append(emoji, num)
+    if (card.delta !== undefined) {
+      const delta = document.createElement('span')
+      delta.className = `admin-live-delta ${card.delta > 0 ? 'up' : 'down'}`
+      delta.textContent = card.delta > 0 ? `▲${card.delta}` : `▼${Math.abs(card.delta)}`
+      delta.title = '與 10 秒前比較'
+      top.append(delta)
+    }
+
     const label = document.createElement('div')
     label.className = 'admin-live-label'
     label.textContent = card.label
-    cardEl.append(num, label)
+
+    const status = document.createElement('div')
+    status.className = 'admin-live-status'
+    status.textContent = card.status
+
+    cardEl.append(top, label, status)
     grid.append(cardEl)
   }
 }

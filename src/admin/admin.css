@@ -82,10 +82,34 @@ body {
   border: 1px solid rgba(212, 166, 88, 0.18);
   border-radius: 12px;
   padding: 12px 14px;
+  transition: border-color 0.2s ease, transform 0.2s ease;
 }
 
+.admin-live-card:hover { transform: translateY(-2px); border-color: rgba(212, 166, 88, 0.4); }
+
+.admin-live-top { display: flex; align-items: baseline; gap: 8px; }
+.admin-live-emoji { font-size: 17px; line-height: 1; }
 .admin-live-num { font-size: 26px; font-weight: 700; color: var(--admin-text); line-height: 1.2; }
 .admin-live-label { font-size: 12px; color: var(--admin-muted); margin-top: 2px; }
+.admin-live-status { font-size: 11.5px; margin-top: 4px; letter-spacing: 0.02em; }
+
+.admin-live-delta {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.admin-live-delta.up { color: var(--admin-green); }
+.admin-live-delta.down { color: var(--admin-red); opacity: 0.85; }
+
+.tone-ok .admin-live-status { color: var(--admin-green); }
+.tone-warn .admin-live-status { color: #f0b453; }
+.tone-bad .admin-live-status { color: var(--admin-red); }
+.tone-muted .admin-live-status { color: var(--admin-muted); }
+
+/* 健康狀態同時映在卡片邊框上，一眼可辨識 */
+.tone-ok { border-color: rgba(127, 176, 105, 0.35); }
+.tone-warn { border-color: rgba(240, 180, 83, 0.35); }
+.tone-bad { border-color: rgba(224, 92, 74, 0.45); }
 
 .admin-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; font-size: 13px; }
 .admin-controls label { display: inline-flex; align-items: center; gap: 6px; color: var(--admin-muted); }
