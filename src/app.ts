@@ -57,6 +57,8 @@ export class App {
   private online: OnlineSession | null = null
   private lobbySocket: ReconnectingSocket | null = null
   private prevLiveGames = new Map<string, { turnNumber: number; capturedRed: number; capturedBlack: number }>()
+  /** 加入對戰 3 秒自動進入的倒數計時器。 */
+  private joinCountdownTimer: number | null = null
   /** 即時戰況「只看交戰中」篩選（隱藏保留中的已結束房間）。 */
   private warLiveOnly = false
   private lastLiveGames: GameSummary[] = []
@@ -147,6 +149,7 @@ export class App {
 
   private goHome(): void {
     this.phase = 'HOME'
+    this.cancelJoinCountdown(false)
     this.leaveOnlineMode()
     this.pauseClock()
     this.homeControls.setResumeAvailable(loadSavedGame() !== null)
@@ -429,14 +432,10 @@ export class App {
     el('btn-join-home').addEventListener('click', () => this.goHome())
     el<HTMLFormElement>('online-join-form').addEventListener('submit', (event) => {
       event.preventDefault()
-      const roomId = this.pendingJoinRoomId
-      if (!roomId) return
-      const name = el<HTMLInputElement>('input-join-name').value.trim() || resolveNickname()
-      this.settings.playerNames[0] = name
-      saveSettings(this.settings)
-      this.pendingJoinRoomId = null
-      this.openOnlineSession(roomId, name, this.pendingJoinIntent === 'watch')
+      this.submitPendingJoin()
     })
+    // 修改暱稱即取消自動加入倒數。
+    el<HTMLInputElement>('input-join-name').addEventListener('input', () => this.cancelJoinCountdown())
 
     el('btn-menu-copylink').addEventListener('click', async () => {
       const url = this.online?.inviteUrl
@@ -895,6 +894,7 @@ export class App {
       this.openOnlineSession(roomId, this.settings.playerNames[0], intent === 'watch')
       return
     }
+    this.cancelJoinCountdown(false)
     this.pendingJoinRoomId = roomId
     this.pendingJoinIntent = intent
     this.setMode('online')
@@ -911,6 +911,47 @@ export class App {
       el('join-rules-note').hidden = false
     }
     showScreen('screen-online-join')
+    if (intent === 'play') this.startJoinCountdown()
+  }
+
+  /** 加入對戰 3 秒倒數：暱稱已預填且未修改時自動進入房間。 */
+  private startJoinCountdown(): void {
+    this.cancelJoinCountdown(false)
+    const input = el<HTMLInputElement>('input-join-name')
+    if (!input.value.trim()) return
+    const button = el<HTMLButtonElement>('btn-join-go')
+    const baseText = button.textContent || '加入對戰'
+    let remaining = 3
+    button.textContent = `${baseText} (${remaining})`
+    this.joinCountdownTimer = window.setInterval(() => {
+      remaining--
+      if (remaining <= 0) {
+        this.submitPendingJoin()
+        return
+      }
+      button.textContent = `${baseText} (${remaining})`
+    }, 1000)
+  }
+
+  private cancelJoinCountdown(restoreLabel = true): void {
+    if (this.joinCountdownTimer !== null) {
+      window.clearInterval(this.joinCountdownTimer)
+      this.joinCountdownTimer = null
+      if (restoreLabel) {
+        el('btn-join-go').textContent = this.pendingJoinIntent === 'watch' ? '進入觀戰' : '加入對戰'
+      }
+    }
+  }
+
+  private submitPendingJoin(): void {
+    this.cancelJoinCountdown(false)
+    const roomId = this.pendingJoinRoomId
+    if (!roomId) return
+    const name = el<HTMLInputElement>('input-join-name').value.trim() || resolveNickname()
+    this.settings.playerNames[0] = name
+    saveSettings(this.settings)
+    this.pendingJoinRoomId = null
+    this.openOnlineSession(roomId, name, this.pendingJoinIntent === 'watch')
   }
 
   private openOnlineSession(roomId: string, myName: string, spectate = false): void {
