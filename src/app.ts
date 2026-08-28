@@ -409,14 +409,31 @@ export class App {
   }
 
   private async toggleFullscreen(): Promise<void> {
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element | null
+      webkitExitFullscreen?: () => Promise<void>
+    }
+    const root = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }
+    const active = document.fullscreenElement ?? doc.webkitFullscreenElement ?? null
     try {
-      if (document.fullscreenElement) {
-        await document.exitFullscreen()
-      } else {
-        await document.documentElement.requestFullscreen()
+      if (active) {
+        if (document.exitFullscreen) await document.exitFullscreen()
+        else if (doc.webkitExitFullscreen) await doc.webkitExitFullscreen.call(doc)
+        this.hud.showHint('已離開全螢幕')
+        return
       }
-    } catch {
-      this.hud.showHint('此瀏覽器或裝置不支援全螢幕模式')
+      if (root.requestFullscreen) {
+        await root.requestFullscreen()
+      } else if (root.webkitRequestFullscreen) {
+        await root.webkitRequestFullscreen.call(root)
+      } else {
+        this.hud.showHint('此瀏覽器不支援全螢幕模式')
+        return
+      }
+      this.hud.showHint('已進入全螢幕——按 Esc 或再點一次按鈕即可離開')
+    } catch (error) {
+      // 把實際原因秀出來，方便診斷「按了沒效果」的環境問題。
+      this.hud.showHint(`無法切換全螢幕：${error instanceof Error ? error.message : '未知原因'}`)
     }
   }
 
