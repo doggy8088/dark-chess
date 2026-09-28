@@ -7,7 +7,7 @@ import { FIRESTORE_ENABLED, PORT } from './config'
 import { parseClientMessage } from './guards'
 import { isRoomId } from './ids'
 import { randomFunName } from '../src/shared/fun-names'
-import type { AnnouncementInfo } from '../src/shared/protocol'
+import type { AnnouncementInfo, ServerMessage } from '../src/shared/protocol'
 import {
   ADMIN_SESSION_TTL_MS,
   adminCookieHeader,
@@ -184,18 +184,45 @@ app.post('/api/admin/announcements', requireAdmin, (req, res) => {
   const stats = rooms.stats()
   const reached = stats.players + stats.spectators + lobbySockets.size
   const record = announcements.post(text, reached)
-  const message: AnnouncementInfo = { id: record.id, text: record.text, at: record.at }
-  rooms.announce({ t: 'announcement', ...message })
-  const payload = JSON.stringify({ t: 'announcement', ...message })
-  for (const client of lobbySockets) {
-    if (client.readyState === 1 /* WebSocket.OPEN */) client.send(payload)
-  }
+  broadcastEveryone({ t: 'announcement', id: record.id, text: record.text, at: record.at })
   res.json({ ok: true, announcement: { id: record.id, text: record.text, at: record.at, reached, acks: 0 } })
 })
 
 app.get('/api/admin/announcements', requireAdmin, (_req, res) => {
   res.json({ announcements: announcements.list() })
 })
+
+/** Takes the announcement on display down; history and read receipts stay. */
+app.post('/api/admin/announcements/:id/withdraw', requireAdmin, (req, res) => {
+  const id = req.params.id ?? ''
+  if (!announcements.withdraw(id)) {
+    res.status(409).json({ error: 'not-active', message: '這則公告目前沒有在展示中' })
+    return
+  }
+  broadcastEveryone({ t: 'announcementWithdrawn', id })
+  res.json({ ok: true })
+})
+
+/** Deletes an announcement from history (and takes it down if showing). */
+app.delete('/api/admin/announcements/:id', requireAdmin, (req, res) => {
+  const id = req.params.id ?? ''
+  const wasActive = announcements.current()?.id === id
+  if (!announcements.remove(id)) {
+    res.status(404).json({ error: 'not-found', message: '找不到這則公告' })
+    return
+  }
+  if (wasActive) broadcastEveryone({ t: 'announcementWithdrawn', id })
+  res.json({ ok: true })
+})
+
+/** Pushes a message to every room member and lobby viewer. */
+function broadcastEveryone(message: ServerMessage): void {
+  rooms.announce(message)
+  const payload = JSON.stringify(message)
+  for (const client of lobbySockets) {
+    if (client.readyState === 1 /* WebSocket.OPEN */) client.send(payload)
+  }
+}
 
 app.get('/api/admin/metrics/live', requireAdmin, (_req, res) => {
   res.json({ version: APP_VERSION, ...metrics.live() })

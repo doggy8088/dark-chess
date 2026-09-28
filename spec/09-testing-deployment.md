@@ -13,13 +13,13 @@
 | 層 | 工具 | 執行指令 | 涵蓋 |
 | --- | --- | --- | --- |
 | 1. 型別檢查 | TypeScript strict（兩份 tsconfig） | `npm run typecheck` | client（`tsconfig.json`）+ server（`server/tsconfig.json`） |
-| 2. 單元測試 | Vitest（`vitest run`） | `npm test`（watch 用 `npx vitest`） | 規則引擎 + 伺服器邏輯，共 17 檔 152 測試 |
+| 2. 單元測試 | Vitest（`vitest run`） | `npm test`（watch 用 `npx vitest`） | 規則引擎 + 伺服器邏輯，共 17 檔 157 測試 |
 | 3. 生產建置 | `tsc && vite build` + esbuild | `npm run build` | 型別錯誤會直接擋下建置 |
 | 4. 實機 E2E | agent-browser 瀏覽器自動化 | 人工／Agent 於 dev 或正式環境操作 | 真實瀏覽器中的 3D、WS、音效、後台流程 |
 
 > 鐵則：每次程式碼變更都必須通過 `npm test` + `npm run typecheck` 才能提交（`AGENTS.md`）；GitHub Actions 亦在部署前重跑 `npm test` + `npm run build`（內含 `tsc`）。
 
-## 2. Vitest 測試分布（17 檔 · 152 測試）
+## 2. Vitest 測試分布（17 檔 · 157 測試）
 
 ### 2.1 規則引擎與共用（`src/tests/` — 7 檔 71 測試）
 
@@ -33,7 +33,7 @@
 | `fun-names.test.ts` | 4 | 36 個趣味暱稱隨機指派 |
 | `members.test.ts` | 2 | 房間人員名單的中文筆畫排序 |
 
-### 2.2 伺服器（`server/tests/` — 10 檔 81 測試）
+### 2.2 伺服器（`server/tests/` — 10 檔 86 測試）
 
 | 測試檔 | 案例數 | 涵蓋內容 |
 | --- | --- | --- |
@@ -43,12 +43,12 @@
 | `timers.test.ts` | 8 | 回合時鐘逾期判負、斷線時鐘暫停、寬限判負、重連恢復剩餘時間 |
 | `chat.test.ts` | 6 | 聊天頻率限制（burst/window/min-gap）、長度上限、尾窗數量 |
 | `takeover.test.ts` | 6 | 殘局接手：棄置座位開放觀戰者、token 發放、時鐘交接 |
-| `announcements.test.ts` | 5 | 公告發布、廣播、已讀回執（ack）彙整 |
+| `announcements.test.ts` | 10 | 公告發布、已讀回執（ack）彙整、撤下與刪除、重啟不復活、寫入順序 |
 | `metrics.test.ts` | 5 | 指標分鐘桶、小時 rollup、保留期清理 |
 | `redact.test.ts` | 5 | **蓋牌遮蔽鐵則**：下行狀態絕不含未翻開棋子的 color/type |
 | `lobby.test.ts` | 3 | 戰情中心列表：排序、終局 5 分鐘保留、僅公開資訊 |
 
-> 測試案例數以 `grep -c '^\s*(it|test)('` 逐檔實測，合計 152；檔案數 17（不含兩個工具檔）。
+> 測試案例數以 `grep -c '^\s*(it|test)('` 逐檔實測，合計 157；檔案數 17（不含兩個工具檔）。
 
 ## 3. 測試工具與手法
 

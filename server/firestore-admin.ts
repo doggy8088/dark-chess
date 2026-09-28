@@ -21,15 +21,21 @@ export class FirestoreAdminStore implements AnnouncementPersistence, MetricsPers
   async loadAnnouncements(limit: number): Promise<AnnouncementRecord[]> {
     const snapshot = await this.announcements.orderBy('at', 'desc').limit(limit).get()
     return snapshot.docs.map((doc) => {
-      const data = doc.data() as { id?: string; text?: string; at?: number; reached?: number; acks?: unknown }
+      const data = doc.data() as { id?: string; text?: string; at?: number; reached?: number; acks?: unknown; endedAt?: unknown }
       return {
         id: typeof data.id === 'string' ? data.id : doc.id,
         text: typeof data.text === 'string' ? data.text : '',
         at: Number(data.at ?? 0),
         reached: Number(data.reached ?? 0),
         acks: Array.isArray(data.acks) ? new Set(data.acks.filter((name): name is string => typeof name === 'string')) : new Set(),
+        // Docs saved before withdrawal existed carry no endedAt.
+        endedAt: typeof data.endedAt === 'number' ? data.endedAt : null,
       }
     })
+  }
+
+  async deleteAnnouncement(id: string): Promise<void> {
+    await this.announcements.doc(id).delete()
   }
 
   async saveHour(point: HourPoint): Promise<void> {

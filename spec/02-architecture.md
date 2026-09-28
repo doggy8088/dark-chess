@@ -311,7 +311,7 @@ sequenceDiagram
 ### 4.3 戰情中心與公告（旁路資料流）
 
 - 首頁：`fetch('/api/games')` 初始 + 每 10 秒輪詢（`refreshLiveGames`），另以 `subscribeLobby` WS 訂閱即時推送；伺服器端 `RoomManager.subscribe()` → `scheduleLobbyBroadcast()`（50ms 合併）→ `{t:'lobby', games}`。
-- 公告：`POST /api/admin/announcements` → `rooms.announce()` + lobby 廣播；讀者按「已讀」→ `announcementAck` → `AnnouncementBoard.ack()` 累計；客戶端以 localStorage 的 `acknowledgedAnnouncements`（上限 50 筆）避免重複彈窗。
+- 公告：`POST /api/admin/announcements` → `rooms.announce()` + lobby 廣播；讀者按「已讀」→ `announcementAck` → `AnnouncementBoard.ack()` 累計；客戶端以 localStorage 的 `acknowledgedAnnouncements`（上限 50 筆）避免重複彈窗。後台撤下（`/withdraw`）或刪除（`DELETE`）展示中的公告時廣播 `announcementWithdrawn`，已開啟的對話框自動關閉。
 - 曝光規則（`server/store.ts` 的 `isLobbyListable`）：進行中一律可見；等待房間建立滿 30 秒才曝光（`LOBBY_WAIT_VISIBILITY_MS`）；已結束房間保留 5 分鐘（`LOBBY_ENDED_RETENTION_MS`）。
 
 ---
@@ -442,7 +442,7 @@ flowchart TB
 ## 8. 架構決策與權衡（摘要）
 
 1. **單一 App 物件集中編排**：`src/app.ts` 以一個類別持有全部跨模組狀態（phase、mode、online、chat、hud、fairness、計時），模組間不互持引用，全靠 App 裝配——換取簡單的單向資料流，代價是 App 較大（1426 行），因此規則、渲染、協定都必須嚴格留在各自資料夾。
-2. **規則引擎零依賴**：讓同一份 `applyAction` 同時跑在瀏覽器（預檢/單機）與 Node（權威執行），消除「客戶端與伺服器規則不一致」這類 bug 的根源；也是 152 個 Vitest 測試能在毫秒內跑完的基礎。
+2. **規則引擎零依賴**：讓同一份 `applyAction` 同時跑在瀏覽器（預檢/單機）與 Node（權威執行），消除「客戶端與伺服器規則不一致」這類 bug 的根源；也是 157 個 Vitest 測試能在毫秒內跑完的基礎。
 3. **物理=表現層**：Rapier 只負責「好看」，每個動畫結尾強制 `snap()` 回邏輯格位；棋局狀態永不由物理結果決定（`world.ts` 類別註解、`controller.ts` 類別註解皆明文）。
 4. **Server-authoritative + redact 單點**：防作弊的核心不是「相信客戶端乖巧」，而是蓋牌身分根本不出伺服器；`redactState` 是唯一出口，且棋子 id 在伺服器端重編為 `c00`–`c31`。
 5. **時間以時間戳為準**：Cloud Run 會在無請求時節流 CPU，`setTimeout` 不可靠；`Room.evaluate()` 的惰性判定讓「重啟、斷線、任何事件」都能正確補結算。

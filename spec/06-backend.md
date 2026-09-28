@@ -90,7 +90,7 @@ gcloud run deploy dark-chess --source . --allow-unauthenticated \
 - **`get(roomId)`**：快取命中直接回傳（回傳前先 `evaluate()` 惰性結算）；miss 時從 store 載入 `RoomDoc` 並以 `Room.fromDoc()` 重建。**併發載入合併**：`loading` Map 把同房間的並發 `load()` 合併成單一 Promise，避免重啟後兩位玩家同時加入產生兩個分岔的 Room 實例。
 - **`sweep()`**：每 60 秒由 `setInterval` 呼叫，把 `finished` 且無連線的房間自快取移除（store 中的文件仍保留至 TTL）。定時器 `.unref()`，不阻礙程序結束。
 - **`stats()`**：即時 gauge（進行中/等待房間數、玩家數、觀戰數）供後台指標。
-- **`announce(msg)`**：全服公告扇出到記憶體中所有房間；大廳連線另由 `index.ts` 直接發送。
+- **`announce(msg)`**：全服公告（及撤下通知）扇出到記憶體中所有房間；大廳連線另由 `index.ts` 的 `broadcastEveryone()` 直接發送。
 
 ## 4. 連線層
 
@@ -173,6 +173,7 @@ gcloud run deploy dark-chess --source . --allow-unauthenticated \
 | `rematchStart` | `state, deadline, fairnessHash` | 新對局開始（先後手已交換），client 清除 `gameOverInfo` |
 | `gameOver` | `state, reason, winnerIndex, fairnessReveal` | 任何終局；附完整公平性揭示 |
 | `announcement` | `id, text, at` | 後台全服公告（房間內經 `rooms.announce`、大廳直接推送） |
+| `announcementWithdrawn` | `id` | 後台撤下或刪除展示中的公告；client 若正開著該則公告即自動關閉（不送已讀） |
 | `takeoverOpen` | `seat, deadlineAt, serverNow` | 座位被棄置、開放觀戰者接手（見 7） |
 | `takeoverClosed` | `seat` | 座位已被接手，對局恢復 |
 | `error` | `code, message` | `ErrorCode = 'room-not-found' \| 'bad-message' \| 'connected-elsewhere' \| 'rate-limited'`；`connected-elsewhere` 同時以 close code `4000` 關閉舊連線 |

@@ -188,13 +188,13 @@
 
 ### 5.1 Vitest（vitest@4.1.11）
 
-- **現況（本次實測 `npm test`）**：**17 個測試檔、152 個測試，全數通過，總耗時約 0.3 秒**。
+- **現況（本次實測 `npm test`）**：**17 個測試檔、157 個測試，全數通過，總耗時約 0.3 秒**。
 - **分布**：
 
 | 目錄 | 檔案 | 測試數 | 涵蓋 |
 | --- | --- | --- | --- |
 | `src/tests/`（7 檔） | rules(32) / cannon(16) / victory(8) / history(5) / canned(4) / fun-names(4) / members(2) | **71** | 規則引擎（翻/移/吃、炮翻山、將士象馬車兵剋制、25 步無吃子和局）、行棋紀錄格式、罐頭訊息、趣味暱稱、人員名單渲染邏輯 |
-| `server/tests/`（10 檔） | room(22) / auth(11) / ip-monitor(10) / timers(8) / chat(6) / takeover(6) / announcements(5) / metrics(5) / redact(5) / lobby(3) | **81** | 房間生命週期、座位/token、回合時鐘（注入假時鐘）、斷線接手、聊天限流、**redact 遮蔽正確性**、戰情中心列表規則、公告、IP 監控、指標 |
+| `server/tests/`（10 檔） | room(22) / auth(11) / ip-monitor(10) / timers(8) / chat(6) / takeover(6) / announcements(10) / metrics(5) / redact(5) / lobby(3) | **86** | 房間生命週期、座位/token、回合時鐘（注入假時鐘）、斷線接手、聊天限流、**redact 遮蔽正確性**、戰情中心列表規則、公告、IP 監控、指標 |
 
 - **為何選 Vitest**：與 Vite 同一轉譯管線（`vite.config.ts` 的 define/WASM 設定可直接共用）、原生 ESM、API 兼容 jest 語法；規則引擎是純函式，Node 環境跑得飛快（無需 jsdom）。`server/tests/server-test-utils.ts` 以假的 `ClientSocket`（僅 `send`/`close` 介面，`server/room.ts` 的 `RoomDeps`/`ClientSocket` 介面即為此設計）驅動房間邏輯，不需真 WebSocket。
 
@@ -212,7 +212,7 @@
 | `build:server` | esbuild bundle → `dist-server/index.mjs` | 伺服器產物（依賴外部化） |
 | `preview` | `vite preview` | 預覽 production build |
 | `start` | `node dist-server/index.mjs` | Cloud Run/Docker 的啟動命令 |
-| `test` | `vitest run` | 17 檔 152 測試 |
+| `test` | `vitest run` | 17 檔 157 測試 |
 | `typecheck` | `tsc && tsc -p server` | 雙 tsconfig 嚴格檢查 |
 
 Makefile 將上述包裝為 `make dev / dev-server / build / test / typecheck / start-local / deploy / deploy-run / bump`（詳 09 章）。
@@ -225,7 +225,7 @@ Makefile 將上述包裝為 `make dev / dev-server / build / test / typecheck / 
 
 - **問題**：暗棋規則（翻/移/吃/剋制/炮翻山/25 步和局）一旦在 client 與 server 各寫一份，必然漂移；且規則若混入 Three.js/DOM，就無法在 Node 端權威執行與測試。
 - **決策**：`src/game/` 只依賴 TS 型別與 Web Crypto（`crypto.getRandomValues`、`crypto.subtle`），零 DOM、零渲染；`GameController`（client 預檢 + 表現）與 `Room.handleAction`（server 權威）呼叫**同一個** `validateAction`/`applyAction`。
-- **佐證**：`server/tsconfig.json` include `../src/game/**`；`src/tests/` 152 測試在無瀏覽器環境通過；`src/physics/animations.ts` 註解「the authoritative game state has already been updated before any animation is enqueued, so a broken animation can never corrupt the game」。
+- **佐證**：`server/tsconfig.json` include `../src/game/**`；`src/tests/` 157 測試在無瀏覽器環境通過；`src/physics/animations.ts` 註解「the authoritative game state has already been updated before any animation is enqueued, so a broken animation can never corrupt the game」。
 - **後果**：新增規則只需改一處，client 預檢訊息、server 權威判定、單元測試同步生效。
 
 ### 6.2 為何 Server-authoritative

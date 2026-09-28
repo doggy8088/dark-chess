@@ -149,6 +149,8 @@ export type ServerMessage =
       announcement?: AnnouncementInfo | null
     }
   | { t: 'announcement'; id: string; text: string; at: number }
+  /** The admin withdrew or deleted an announcement — close it if still open. */
+  | { t: 'announcementWithdrawn'; id: string }
   | { t: 'takeoverOpen'; seat: Seat; deadlineAt: number; serverNow: number }
   | { t: 'takeoverClosed'; seat: Seat }
   | { t: 'state'; state: RedactedStateDTO; deadline: TurnDeadline | null }

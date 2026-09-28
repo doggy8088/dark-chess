@@ -13,7 +13,7 @@
 | 能力 | 說明 | 主要實作 |
 | --- | --- | --- |
 | 管理員認證 | Google 帳號登入 + 信箱白名單 + 簽章 Cookie | `server/auth.ts` |
-| 全服公告 | 即時推播到所有房間與大廳，玩家強制點「我知道了」，可追蹤已讀人數 | `server/announcements.ts` |
+| 全服公告 | 即時推播到所有房間與大廳，玩家強制點「我知道了」，可追蹤已讀人數；可撤下或刪除 | `server/announcements.ts` |
 | 伺服器指標 | 即時快照 + 分鐘/小時/日三種粒度的負載趨勢報表 | `server/metrics.ts` |
 | IP 監控與封鎖 | per-IP 流量統計、異常告警、時限/永久封鎖 | `server/ip-monitor.ts` |
 
@@ -170,10 +170,11 @@ interface AnnouncementRecord {
   at: number          // 發送時間 epoch ms
   reached: number     // 發送當下送達的連線人數
   acks: Set<string>   // 已讀者名稱集合（去重）
+  endedAt: number | null  // 結束展示時間（被撤下或被新公告取代）；展示中為 null
 }
 ```
 
-`AnnouncementBoard` 同一時間只有一則「現行公告」（`current()`）：發新公告會把 `activeId` 指向新紀錄；歷史以 `unshift` 維護，**上限 `HISTORY_LIMIT = 50` 則**，超過即裁切。
+`AnnouncementBoard` 同一時間只有一則「現行公告」（`current()`）：發新公告會把前一則現行公告標記 `endedAt` 並把 `activeId` 指向新紀錄；歷史以 `unshift` 維護，**上限 `HISTORY_LIMIT = 50` 則**，超過即裁切。不變式：`activeId` 只可能是 `null` 或最新一則（`records[0]`）的 id。
 
 ### 4.2 發送流程（`POST /api/admin/announcements`）
 
@@ -219,7 +220,21 @@ sequenceDiagram
 ### 4.5 新加入者與重啟還原
 
 - **新加入者補看**：`RoomManager` 建構時注入 `activeAnnouncement()`（`server/index.ts`）；房間的 `join`、`takeoverSeat` 等狀態下行訊息皆附帶 `announcement` 欄位（`server/room.ts`，協定型別見 `src/shared/protocol.ts` 的 `AnnouncementInfo { id, text, at }`），玩家加入時若公告仍在展示中就會收到並需確認。大廳端 `subscribeLobby` 時也會立刻補發現行公告。
-- **重啟還原**：`announcements.init()` 於伺服器啟動時 `loadAnnouncements(50)` 載回歷史（`acks` 由陣列還原為 `Set`），`activeId` 指向最新一則；載入失敗僅記 error 不中斷啟動（best-effort）。
+- **重啟還原**：`announcements.init()` 於伺服器啟動時 `loadAnnouncements(50)` 載回歷史（`acks` 由陣列還原為 `Set`），**最新一則且 `endedAt === null` 時**才恢復為現行公告，否則重啟後無現行公告；載入失敗僅記 error 不中斷啟動（best-effort）。舊版文件沒有 `endedAt` 欄位，一律視為 `null`。
+
+### 4.6 撤下與刪除
+
+測試或過期的公告若一直是「現行公告」，每位尚未按過「我知道了」的新訪客都會被強制彈窗，因此後台提供兩種移除方式：
+
+| 操作 | API | 看板方法 | 效果 |
+| --- | --- | --- | --- |
+| 撤下 | `POST /api/admin/announcements/:id/withdraw` | `withdraw(id)` | 只對「展示中」那則有效（否則 `409 not-active`）；設定 `endedAt`、`activeId = null`，**保留紀錄與已讀人數** |
+| 刪除 | `DELETE /api/admin/announcements/:id` | `remove(id)` | 任一則皆可（未知 id 回 `404 not-found`）；自記憶體移除並 `deleteAnnouncement(id)` 刪除 Firestore 文件；若刪的是展示中那則，同時撤下 |
+
+- **即時關閉玩家畫面**：撤下（或刪除展示中的公告）時，`server/index.ts` 以 `broadcastEveryone()` 對所有房間與大廳推送 `{ t: 'announcementWithdrawn', id }`；`src/app.ts` `withdrawAnnouncement(id)` 比對目前開著的公告 id（`shownAnnouncementId`），相符才呼叫 `closeAnnouncementDialog()` 關閉，不會送出已讀回執。刪除已結束展示的公告不推播。
+- **新訪客不再看到**：`current()` 回傳 `null`，房間 `joined.announcement` 與大廳 `subscribeLobby` 的補發都不會再帶這則公告。
+- **重啟不復活**：`init()` 只把「最新且未結束」的那則視為現行公告。刪除最新一則後，若新的最新一則仍是 `endedAt === null`（舊版資料），`remove()` 會順手補上 `endedAt` 並寫回，避免重啟後舊公告重新上架。
+- **寫入順序**：`AnnouncementBoard` 以「每則公告一條 Promise 鏈」（`writes` Map）串行化同一 id 的 `saveAnnouncement` / `deleteAnnouncement`，確保較慢的已讀寫入不會在刪除之後才落地、讓文件在 Firestore 復活。
 
 ---
 
@@ -394,6 +409,7 @@ flowchart TD
 
 - `#announcement-input`（`maxlength="500"`）+「發送公告」按鈕；送出成功顯示「已發送！」（4 秒後清除），失敗顯示錯誤訊息。
 - `#announcement-list` 歷史列表：每則顯示內容、`toLocaleString('zh-TW')` 時間、「送達 N 人」與右側「已讀 x/y」徽章（`AnnouncementView.acks/reached`）。
+- 展示中的那則（`AnnouncementView.active`）外框轉綠並顯示「展示中」徽章與「撤下」按鈕；每則都有紅色「刪除」按鈕，**需在 3 秒內再按一次「確定刪除？」**才會送出（刪除無法復原）。操作結果顯示於 `#announce-feedback`（4 秒後清除）。
 
 ### 8.6 IP 監控面板
 
@@ -422,7 +438,9 @@ flowchart TD
 | GET | `/api/admin/session` | 公開 | Cookie | `{ authenticated: boolean, email: string \| null }` | `server/index.ts` |
 | POST | `/api/admin/logout` | 公開 | — | 清除 Cookie，`{ ok: true }` | `server/index.ts` |
 | POST | `/api/admin/announcements` | 管理員 | `{ text }`（≤500 字，控制字元濾除） | `{ ok, announcement: { id, text, at, reached, acks: 0 } }`；空白 400；同時 WS 廣播 | `server/index.ts` + `AnnouncementBoard.post()` |
-| GET | `/api/admin/announcements` | 管理員 | — | `{ announcements: AnnouncementView[] }`（最多 50 則，含 reached/acks） | `AnnouncementBoard.list()` |
+| GET | `/api/admin/announcements` | 管理員 | — | `{ announcements: AnnouncementView[] }`（最多 50 則，含 reached/acks/active/endedAt） | `AnnouncementBoard.list()` |
+| POST | `/api/admin/announcements/:id/withdraw` | 管理員 | 路徑參數 `id` | `{ ok: true }`；非展示中 409 `not-active`；WS 推送 `announcementWithdrawn` | `AnnouncementBoard.withdraw()` |
+| DELETE | `/api/admin/announcements/:id` | 管理員 | 路徑參數 `id` | `{ ok: true }`；未知 id 404 `not-found`；若為展示中則 WS 推送 `announcementWithdrawn` | `AnnouncementBoard.remove()` |
 | GET | `/api/admin/metrics/live` | 管理員 | — | `{ version, players, spectators, lobby, roomsPlaying, roomsWaiting, lagMs, cpuPct, rssMb, heapMb, uptimeSec }` | `Metrics.live()` |
 | GET | `/api/admin/metrics/series` | 管理員 | `granularity=minute\|hour\|day`、`from`、`to`（epoch ms） | `{ granularity, points }`（分/時/日三種粒度） | `Metrics.seriesMinute/seriesHour/seriesDay` |
 | GET | `/api/admin/ip-stats` | 管理員 | `range=1h\|24h\|7d`（預設 24h） | `{ range, points: IpTopRow[] }`（Top 10） | `IpMonitor.top()` |
@@ -444,11 +462,11 @@ flowchart TD
 | `src/admin/admin.ts` | 後台前端邏輯：登入、輪詢、指標卡、Chart.js 圖表、公告、IP 面板 |
 | `src/admin/admin.css` | 後台樣式（tone 色系、指標卡格線、IP 表格、信箱 blur） |
 | `server/auth.ts` | GIS ID token 驗簽、ADMIN_EMAILS、HMAC session、Cookie 工具 |
-| `server/announcements.ts` | `AnnouncementBoard`：發送、已讀去重、50 則歷史、持久化介面 |
+| `server/announcements.ts` | `AnnouncementBoard`：發送、撤下、刪除、已讀去重、50 則歷史、持久化介面 |
 | `server/metrics.ts` | `Metrics`：分鐘桶、小時彙整、台北日聚合、live 快照 |
 | `server/ip-monitor.ts` | `IpMonitor`：per-IP 計數、告警、Top 10、封鎖 |
 | `server/firestore-admin.ts` | `FirestoreAdminStore`：五個集合的讀寫與 7 天清理 |
 | `server/index.ts` | admin 路由、requireAdmin、IP 封鎖 middleware、WS 廣播與踢線 |
-| `src/ui/dialogs.ts` | `data-persistent` 對話框機制與 `showAnnouncementDialog()` |
-| `src/app.ts` | 玩家端公告顯示、localStorage 已讀、回執發送 |
-| `src/shared/protocol.ts` | `AnnouncementInfo`、`announcementAck` 訊息型別 |
+| `src/ui/dialogs.ts` | `data-persistent` 對話框機制與 `showAnnouncementDialog()` / `closeAnnouncementDialog()` |
+| `src/app.ts` | 玩家端公告顯示、localStorage 已讀、回執發送、撤下時自動關閉 |
+| `src/shared/protocol.ts` | `AnnouncementInfo`、`announcementAck`、`announcementWithdrawn` 訊息型別 |

@@ -52,7 +52,7 @@
 | 前台體驗 | 3D 場景、物理動畫、RWD、全螢幕、音效、歷史導覽 | [05-frontend.md](./05-frontend.md) |
 | 後台管理 | Google 登入、全服公告（已讀追蹤）、流量報表、CPU/負載監控、IP 封鎖 | [07-admin.md](./07-admin.md) |
 | 部署運維 | Cloud Run + GitHub Pages、Docker 多階段建置、版號自動遞增 | [09-testing-deployment.md](./09-testing-deployment.md) |
-| 測試 | Vitest 17 檔 152 測試 + agent-browser 實機驗證 | [09-testing-deployment.md](./09-testing-deployment.md) |
+| 測試 | Vitest 17 檔 157 測試 + agent-browser 實機驗證 | [09-testing-deployment.md](./09-testing-deployment.md) |
 
 ## 5. 正式環境
 

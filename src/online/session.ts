@@ -44,6 +44,8 @@ export interface OnlineSessionCallbacks {
   onRematchStart(state: GameState, hidden: Set<string>): void
   /** Admin announcement requiring acknowledgement. */
   onAnnouncement(announcement: AnnouncementInfo): void
+  /** The admin took an announcement down — close it if it is still open. */
+  onAnnouncementWithdrawn(id: string): void
   /** A seat was abandoned — spectators may take it over until deadlineAt. */
   onTakeoverOpen(seat: 0 | 1, deadlineAt: number): void
   /** The abandoned seat has been claimed (or the takeover resolved). */
@@ -259,6 +261,9 @@ export class OnlineSession {
         break
       case 'announcement':
         this.callbacks.onAnnouncement({ id: msg.id, text: msg.text, at: msg.at })
+        break
+      case 'announcementWithdrawn':
+        this.callbacks.onAnnouncementWithdrawn(msg.id)
         break
       case 'takeoverOpen':
         this.callbacks.onTakeoverOpen(msg.seat, msg.deadlineAt)

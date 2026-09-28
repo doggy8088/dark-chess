@@ -34,6 +34,13 @@ export function showAnnouncementDialog(text: string, at: number, onAck: () => vo
   if (!dialog.open) dialog.showModal()
 }
 
+/** Closes the announcement dialog without an acknowledgement (the admin
+ *  withdrew it). */
+export function closeAnnouncementDialog(): void {
+  const dialog = el<HTMLDialogElement>('dialog-announcement')
+  if (dialog.open) dialog.close()
+}
+
 export function openDialog(id: string): HTMLDialogElement {
   const dialog = el<HTMLDialogElement>(id)
   if (!dialog.open) dialog.showModal()

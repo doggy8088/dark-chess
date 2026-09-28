@@ -18,7 +18,7 @@ import { SoundPlayer } from './audio/sounds'
 import { Hud } from './ui/hud'
 import { ChatPanel } from './ui/chat'
 import { setupOnlineLobby, showInvite } from './ui/online-lobby'
-import { confirmDialog, openDialog, setupDialogs, showAnnouncementDialog, showFairnessDialog, showGameOverDialog } from './ui/dialogs'
+import { closeAnnouncementDialog, confirmDialog, openDialog, setupDialogs, showAnnouncementDialog, showFairnessDialog, showGameOverDialog } from './ui/dialogs'
 import { setupHomeAndSetupScreens, setScreenHistorySync, showError, showScreen } from './ui/setup'
 import { el } from './ui/dom'
 import {
@@ -639,6 +639,8 @@ export class App {
           this.renderLiveGames(msg.games)
         } else if (msg.t === 'announcement') {
           this.showAnnouncement({ id: msg.id, text: msg.text, at: msg.at })
+        } else if (msg.t === 'announcementWithdrawn') {
+          this.withdrawAnnouncement(msg.id)
         }
       },
     })
@@ -653,6 +655,8 @@ export class App {
   // ------------------------------------------------------------ announcements
 
   private ackedAnnouncements = new Set<string>()
+  /** Id of the announcement currently open in the dialog, if any. */
+  private shownAnnouncementId: string | null = null
 
   private wireAnnouncementStorage(): void {
     try {
@@ -670,7 +674,9 @@ export class App {
   /** Shows an admin announcement; readers must click to dismiss (已讀). */
   private showAnnouncement(announcement: AnnouncementInfo): void {
     if (this.ackedAnnouncements.has(announcement.id)) return
+    this.shownAnnouncementId = announcement.id
     showAnnouncementDialog(announcement.text, announcement.at, () => {
+      this.shownAnnouncementId = null
       this.ackedAnnouncements.add(announcement.id)
       if (this.ackedAnnouncements.size > 50) {
         // Keep the most recent acknowledgements only.
@@ -684,6 +690,13 @@ export class App {
       this.online?.sendAnnouncementAck(announcement.id)
       this.lobbySocket?.send({ t: 'announcementAck', id: announcement.id })
     })
+  }
+
+  /** The admin took an announcement down: close it if it is still on screen. */
+  private withdrawAnnouncement(id: string): void {
+    if (this.shownAnnouncementId !== id) return
+    this.shownAnnouncementId = null
+    closeAnnouncementDialog()
   }
 
   private updateWarRoomBadge(connected: boolean): void {
@@ -1125,6 +1138,7 @@ export class App {
         this.beginOnlineGame(state, hidden, { intro: true })
       },
       onAnnouncement: (announcement) => this.showAnnouncement(announcement),
+      onAnnouncementWithdrawn: (id) => this.withdrawAnnouncement(id),
       onTakeoverOpen: (seat, deadlineAt) => this.handleTakeoverOpen(seat, deadlineAt),
       onTakeoverClosed: (seat) => {
         this.chat.addNotice('系統：座位已由新玩家接手，對局繼續！')

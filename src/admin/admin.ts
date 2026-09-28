@@ -10,6 +10,9 @@ interface AnnouncementView {
   at: number
   reached: number
   acks: number
+  /** Still on display to new visitors. */
+  active: boolean
+  endedAt: number | null
 }
 
 interface LiveSnapshot {
@@ -337,7 +340,7 @@ async function refreshAnnouncements(): Promise<void> {
   list.textContent = ''
   for (const item of announcements) {
     const li = document.createElement('li')
-    li.className = 'admin-announcement-item'
+    li.className = item.active ? 'admin-announcement-item active' : 'admin-announcement-item'
     const body = document.createElement('div')
     const text = document.createElement('p')
     text.className = 'admin-announcement-text'
@@ -346,12 +349,93 @@ async function refreshAnnouncements(): Promise<void> {
     meta.className = 'admin-announcement-meta'
     meta.textContent = `${new Date(item.at).toLocaleString('zh-TW', { hour12: false })} · 送達 ${item.reached} 人`
     body.append(text, meta)
+
+    const side = document.createElement('div')
+    side.className = 'admin-announcement-side'
+    if (item.active) {
+      const badge = document.createElement('span')
+      badge.className = 'admin-announcement-badge'
+      badge.textContent = '展示中'
+      side.append(badge)
+    }
     const reads = document.createElement('span')
     reads.className = 'admin-announcement-reads'
     reads.textContent = `已讀 ${item.acks}/${item.reached}`
-    li.append(body, reads)
+    side.append(reads)
+    if (item.active) {
+      const withdraw = document.createElement('button')
+      withdraw.type = 'button'
+      withdraw.className = 'admin-btn small'
+      withdraw.textContent = '撤下'
+      withdraw.title = '停止對玩家展示，保留公告紀錄與已讀人數'
+      withdraw.addEventListener('click', () => {
+        withdraw.disabled = true
+        void withdrawAnnouncement(item.id).finally(() => {
+          withdraw.disabled = false
+        })
+      })
+      side.append(withdraw)
+    }
+    side.append(deleteButton(item.id))
+    li.append(body, side)
     list.append(li)
   }
+}
+
+/** Delete needs a second click within 3 seconds — it cannot be undone. */
+function deleteButton(id: string): HTMLButtonElement {
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.className = 'admin-btn small danger'
+  button.textContent = '刪除'
+  button.title = '從紀錄中永久刪除；若正在展示也會一併撤下'
+  let armTimer = 0
+  button.addEventListener('click', () => {
+    if (!armTimer) {
+      button.textContent = '確定刪除？'
+      armTimer = window.setTimeout(() => {
+        armTimer = 0
+        button.textContent = '刪除'
+      }, 3000)
+      return
+    }
+    window.clearTimeout(armTimer)
+    armTimer = 0
+    button.disabled = true
+    void deleteAnnouncement(id).finally(() => {
+      button.disabled = false
+      button.textContent = '刪除'
+    })
+  })
+  return button
+}
+
+async function withdrawAnnouncement(id: string): Promise<void> {
+  try {
+    await request(`/api/admin/announcements/${encodeURIComponent(id)}/withdraw`, { method: 'POST' })
+    announceFeedback('已撤下，玩家畫面上的公告會自動關閉')
+    await refreshAnnouncements()
+  } catch (error) {
+    announceFeedback(error instanceof Error ? error.message : String(error))
+  }
+}
+
+async function deleteAnnouncement(id: string): Promise<void> {
+  try {
+    await request(`/api/admin/announcements/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    announceFeedback('已刪除公告')
+    await refreshAnnouncements()
+  } catch (error) {
+    announceFeedback(error instanceof Error ? error.message : String(error))
+  }
+}
+
+function announceFeedback(text: string): void {
+  const feedback = el('announce-feedback')
+  feedback.textContent = text
+  window.setTimeout(() => {
+    if (feedback.textContent === text) feedback.textContent = ''
+  }, 4000)
 }
 
 async function sendAnnouncement(): Promise<void> {
